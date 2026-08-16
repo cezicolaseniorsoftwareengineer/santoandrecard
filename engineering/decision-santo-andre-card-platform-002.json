@@ -1,0 +1,34 @@
+{
+  "decision_id": "santo-andre-card-platform-002-sandbox",
+  "risk_class": "critical",
+  "financially_sensitive": true,
+  "scores": {
+    "correctness": 4,
+    "financial_integrity": 2,
+    "security": 2,
+    "compliance": 2,
+    "recoverability": 2,
+    "testability": 4,
+    "observability": 3,
+    "maintainability": 4,
+    "performance": 3,
+    "cost": 4
+  },
+  "evidence": {
+    "correctness": ["Clean Maven verify passed 14 tests; Angular tests passed 9 tests and AOT build succeeded"],
+    "financial_integrity": ["Decimal interest calculation and pessimistic wallet debit are tested; immutable double-entry ledger is pending"],
+    "security": ["Tenant isolation has a negative test; OIDC, server-derived tenant and RBAC are pending"],
+    "compliance": ["No PAN or CVV is stored and the sandbox restriction is explicit; external legal and PCI validation is pending"],
+    "recoverability": ["Database transactions protect local mutations; backup, restore, replay and reconciliation are pending"],
+    "testability": ["Fourteen backend tests and nine frontend tests passed from clean validation"],
+    "observability": ["Quarkus health and Prometheus are enabled; business SLO and reconciliation metrics are pending"],
+    "maintainability": ["Domain, application, adapters and standalone Angular store/components are separated"]
+  },
+  "unresolved_vetoes": [
+    {"cell": "security_compliance", "reason": "OIDC, MFA for admin, RBAC and server-derived tenant identity are absent"},
+    {"cell": "ledger_accounting", "reason": "Wallet movements do not yet post to an immutable balanced journal"},
+    {"cell": "quality_formal", "reason": "Flyway V2, concurrency and tenant isolation have not been executed against PostgreSQL"},
+    {"cell": "product_regulatory", "reason": "Invoice, delinquency and interest product rules require legal and product approval"}
+  ],
+  "external_validation": {"required": true, "status": "pending"}
+}

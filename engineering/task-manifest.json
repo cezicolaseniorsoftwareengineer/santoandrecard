@@ -1,0 +1,42 @@
+{
+  "task_id": "santo-andre-card-platform-002",
+  "objective": "Build the first end-to-end Banco Santo Andre card and wallet experience with multi-tenant users, admin controls, purchases, installments, invoices and interest modeling",
+  "risk_class": "critical",
+  "domains": [
+    "financial",
+    "cards",
+    "ledger",
+    "security",
+    "distributed-systems",
+    "database",
+    "messaging",
+    "cache",
+    "platform",
+    "auth",
+    "frontend"
+  ],
+  "financially_sensitive": true,
+  "auth_sensitive": true,
+  "production": false,
+  "regulatory": false,
+  "constraints": [
+    "Basic educational simulation MVP",
+    "Original Banco Santo Andre brand with no third-party source code, branding or proprietary interface copying",
+    "Java 17",
+    "Quarkus 3.33 LTS",
+    "Every feature ships with automated tests",
+    "No commit, push or deployment without an explicit request"
+  ],
+  "success_criteria": [
+    "Backend card and wallet slice compiles and is executable",
+    "PostgreSQL schema is versioned with Flyway",
+    "REST API is documented with OpenAPI",
+    "Unit and integration tests cover the delivered behavior",
+    "Docker Compose describes PostgreSQL, Redis and Kafka",
+    "Kubernetes manifests deploy the service without embedded secrets",
+    "Architecture provides explicit seams for authorization and ledger services",
+    "Angular interface provides login, customer dashboard, purchase simulation and admin dashboard",
+    "Original Banco Santo Andre logo is integrated",
+    "Interest and installment rules are deterministic, decimal-safe and tested"
+  ]
+}

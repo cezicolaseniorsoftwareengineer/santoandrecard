@@ -1,0 +1,7 @@
+**/target/
+.idea/
+.vscode/
+*.iml
+.env
+secrets/
+operator-prompt.md

@@ -1,0 +1,20 @@
+{
+  "task_id": "santo-andre-card-platform-002",
+  "artifact": "banco-santo-andre-finance-and-ui-sandbox",
+  "evidence_type": "clean-build-tests-audit-and-architecture-review",
+  "observed": [
+    "Quarkus clean verify passed 14 tests",
+    "Angular passed 9 tests",
+    "Angular production build succeeded with a 222.23 kB initial bundle",
+    "npm audit reported zero vulnerabilities",
+    "Original logo was generated and integrated",
+    "Independent architecture review produced ADR-002"
+  ],
+  "decision": "Sandbox increment accepted; production, real funds and external exposure blocked",
+  "residual_risks": [
+    "No real authentication or RBAC",
+    "No immutable double-entry ledger or reconciliation",
+    "PostgreSQL/Flyway integration and concurrency are not proven",
+    "Frontend is not connected to backend and has no browser E2E evidence"
+  ]
+}

@@ -1,0 +1,64 @@
+@if (!store.session()) {
+  <main class="login-shell">
+    <section class="login-story" aria-label="Apresentação do Banco Santo André">
+      <img class="brand-logo brand-logo--hero" src="assets/brand/banco-santo-andre-logo.png" alt="Banco Santo André">
+      <p class="eyebrow">Seu cartão, do seu jeito</p>
+      <h1>Clareza para escolher.<br>Controle para realizar.</h1>
+      <p class="lead">Uma experiência demonstrativa para cuidar do saldo, simular compras e acompanhar cada parcela.</p>
+      <div class="security-note"><span aria-hidden="true">✓</span><span><strong>Ambiente de demonstração</strong><br>Nenhuma transação financeira real será realizada.</span></div>
+    </section>
+    <section class="login-panel">
+      <div class="login-card">
+        <span class="mobile-brand">Santo André</span>
+        <p class="eyebrow">Boas-vindas</p><h2>Acesse sua conta</h2><p>Use os dados demonstrativos para explorar a plataforma.</p>
+        <form (ngSubmit)="login()">
+          <label for="email">E-mail</label><input id="email" name="email" type="email" [(ngModel)]="email" autocomplete="username" required>
+          <label for="password">Senha</label><input id="password" name="password" type="password" [(ngModel)]="password" autocomplete="current-password" minlength="6" required>
+          <fieldset><legend>Perfil de acesso</legend><label class="role"><input type="radio" name="role" value="CUSTOMER" [(ngModel)]="role"> Cliente</label><label class="role"><input type="radio" name="role" value="ADMIN" [(ngModel)]="role"> Administração</label></fieldset>
+          <button class="primary full" type="submit">Entrar com segurança <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="demo-hint">Cliente: cliente&#64;santoandre.demo<br>Admin: admin&#64;santoandre.demo · use qualquer senha com 6 ou mais caracteres</p>
+      </div>
+    </section>
+  </main>
+} @else {
+  <div class="app-shell">
+    <aside class="sidebar">
+      <img class="brand-logo" src="assets/brand/banco-santo-andre-logo.png" alt="Banco Santo André">
+      <nav aria-label="Navegação principal">
+        @if (!isAdmin()) {
+          <button [class.active]="view() === 'overview'" (click)="navigate('overview')"><span>⌂</span> Visão geral</button>
+          <button [class.active]="view() === 'shopping'" (click)="navigate('shopping')"><span>◇</span> Simular compra</button>
+          <button [class.active]="view() === 'statement'" (click)="navigate('statement')"><span>≡</span> Extrato</button>
+          <button [class.active]="view() === 'invoice'" (click)="navigate('invoice')"><span>▤</span> Faturas</button>
+        } @else { <button class="active"><span>▦</span> Painel executivo</button> }
+      </nav>
+      <div class="sidebar-bottom"><span class="avatar">{{ store.session()!.name.charAt(0) }}</span><span><strong>{{ store.session()!.name }}</strong><small>{{ isAdmin() ? 'Administrador' : 'Conta digital' }}</small></span><button class="icon-button" (click)="logout()" aria-label="Sair">↪</button></div>
+    </aside>
+    <main class="content">
+      <header class="topbar"><div><p class="eyebrow">{{ isAdmin() ? 'Administração' : 'Minha conta' }}</p><h1>{{ isAdmin() ? 'Visão financeira' : 'Olá, Marina' }}</h1></div><div class="status"><span></span> Ambiente demonstrativo</div></header>
+      @if (isAdmin()) {
+        <section class="hero-row"><div><p class="eyebrow light">Banco Santo André</p><h2>Controle completo da carteira</h2><p>Acompanhe clientes, recebíveis e faturas em um único lugar.</p></div><div class="hero-date">Atualizado agora<br><strong>16 ago 2026</strong></div></section>
+        <section class="metrics-grid">
+          <article class="metric"><span>Clientes ativos</span><strong>{{ store.adminMetrics.customers }}</strong><small>↗ 4,8% no mês</small></article>
+          <article class="metric"><span>Saldo da carteira</span><strong>{{ store.adminMetrics.portfolioBalance | currency:'BRL' }}</strong><small>Capital simulado</small></article>
+          <article class="metric"><span>Recebimentos previstos</span><strong>{{ store.adminMetrics.receivables | currency:'BRL' }}</strong><small>Próximos 30 dias</small></article>
+          <article class="metric"><span>Faturas em aberto</span><strong>{{ store.adminMetrics.openInvoices }}</strong><small class="attention">Inadimplência {{ store.adminMetrics.delinquencyRate }}%</small></article>
+        </section>
+        <section class="panel"><div class="panel-heading"><div><p class="eyebrow">Operação</p><h2>Visão consolidada</h2></div><button class="secondary">Exportar relatório</button></div><div class="portfolio-bars"><div><span>Faturas a vencer</span><i style="--size: 78%"></i><strong>R$ 318 mil</strong></div><div><span>Faturas pagas</span><i style="--size: 62%"></i><strong>R$ 254 mil</strong></div><div><span>Parcelamentos</span><i style="--size: 38%"></i><strong>R$ 156 mil</strong></div><div><span>Encargos</span><i style="--size: 14%"></i><strong>R$ 57 mil</strong></div></div></section>
+      } @else if (view() === 'overview') {
+        <section class="hero-row customer"><div><p class="eyebrow light">Saldo disponível</p><h2>{{ balanceVisible() ? (store.balance() | currency:'BRL') : '••••••' }}</h2><button class="text-button light" (click)="balanceVisible.set(!balanceVisible())">{{ balanceVisible() ? 'Ocultar saldo' : 'Mostrar saldo' }}</button></div><form class="quick-deposit" (ngSubmit)="addBalance()"><label for="deposit">Adicionar saldo</label><div><span>R$</span><input id="deposit" name="deposit" type="number" min="0.01" max="50000" step="0.01" [(ngModel)]="depositAmount"><button type="submit">Adicionar</button></div></form></section>
+        <section class="dashboard-grid"><article class="credit-card"><div class="card-top"><span>Santo André</span><span>crédito</span></div><div class="chip"></div><p>•••• •••• •••• {{ store.card().lastFour }}</p><div class="card-bottom"><span>MARINA OLIVEIRA</span><strong>VISA</strong></div></article><article class="limit-card"><p>Limite disponível</p><strong>{{ store.availableLimit() | currency:'BRL' }}</strong><div class="progress"><i [style.width.%]="store.card().used / store.card().limit * 100"></i></div><div><span>Usado<br><strong>{{ store.card().used | currency:'BRL' }}</strong></span><span>Limite total<br><strong>{{ store.card().limit | currency:'BRL' }}</strong></span></div><button class="primary" (click)="navigate('shopping')">Simular uma compra</button></article></section>
+        <section class="panel"><div class="panel-heading"><div><p class="eyebrow">Últimas movimentações</p><h2>Seu extrato recente</h2></div><button class="text-button" (click)="navigate('statement')">Ver extrato completo →</button></div><div class="transaction-list">@for (item of store.transactions().slice(0, 3); track item.id) { <div class="transaction"><span class="transaction-icon">{{ item.kind === 'DEPOSIT' ? '↓' : '↑' }}</span><span><strong>{{ item.description }}</strong><small>{{ item.occurredAt | date:'dd MMM':'':'pt-BR' }} · {{ item.category }}</small></span><strong [class.positive]="item.amount > 0">{{ item.amount | currency:'BRL' }}</strong></div> }</div></section>
+      } @else if (view() === 'shopping') {
+        <section class="page-heading"><div><p class="eyebrow">Experimente antes de comprar</p><h2>Simulador de compra</h2><p>Compare o valor à vista e o parcelamento antes de confirmar sua escolha.</p></div><div class="available-pill">Limite disponível <strong>{{ store.availableLimit() | currency:'BRL' }}</strong></div></section>
+        <section class="simulator-grid"><form class="panel form-panel" (ngSubmit)="simulate()"><label for="category">Onde você quer comprar?</label><select id="category" name="category" [(ngModel)]="category">@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select><label for="merchant">Estabelecimento</label><input id="merchant" name="merchant" [(ngModel)]="merchant" required><label for="amount">Valor da compra</label><div class="money-input"><span>R$</span><input id="amount" name="amount" type="number" min="0.01" step="0.01" [(ngModel)]="purchaseAmount" required></div><label for="installments">Parcelas</label><select id="installments" name="installments" [(ngModel)]="installments">@for (n of [1,2,3,4,5,6,7,8,9,10,11,12]; track n) { <option [value]="n">{{ n }}x</option> }</select><small>Acima de 6 parcelas, a simulação aplica juros demonstrativos de 1,49% a.m.</small><button class="primary full" type="submit">Calcular simulação</button></form><aside class="simulation-result" [class.empty]="!simulation()">@if (simulation(); as result) { <p class="eyebrow light">Sua simulação</p><h3>{{ result.installments }}x de</h3><strong>{{ result.installmentAmount | currency:'BRL' }}</strong><hr><div><span>Compra</span><b>{{ result.amount | currency:'BRL' }}</b></div><div><span>Total simulado</span><b>{{ result.totalAmount | currency:'BRL' }}</b></div><p class="disclaimer">Simulação educativa. Taxas e aprovação dependem das regras do backend.</p><button class="white-button">Continuar compra</button> } @else { <span class="result-icon">◇</span><h3>O resultado aparece aqui</h3><p>Preencha os dados para comparar as condições.</p> }</aside></section>
+      } @else if (view() === 'statement') {
+        <section class="page-heading"><div><p class="eyebrow">Movimentações</p><h2>Extrato da conta</h2><p>Entradas e saídas reunidas em uma visão simples.</p></div><button class="secondary">Baixar extrato</button></section><section class="panel transaction-list">@for (item of store.transactions(); track item.id) { <div class="transaction"><span class="transaction-icon">{{ item.kind === 'DEPOSIT' ? '↓' : '↑' }}</span><span><strong>{{ item.description }}</strong><small>{{ item.occurredAt | date:'dd/MM/yyyy' }} · {{ item.category }} @if (item.installments > 1) { · {{ item.installments }} parcelas }</small></span><strong [class.positive]="item.amount > 0">{{ item.amount | currency:'BRL' }}</strong></div> }</section>
+      } @else {
+        <section class="page-heading"><div><p class="eyebrow">Cartão final {{ store.card().lastFour }}</p><h2>Faturas</h2><p>Acompanhe valores, vencimentos e pagamentos.</p></div></section><section class="invoice-grid">@for (invoice of store.invoices(); track invoice.month) { <article class="panel invoice-card"><span [class.paid]="invoice.status === 'PAID'">{{ invoice.status === 'PAID' ? 'Paga' : 'Em aberto' }}</span><h3>{{ invoice.month }}</h3><strong>{{ invoice.amount | currency:'BRL' }}</strong><small>Vencimento dia 12</small>@if (invoice.status === 'OPEN') { <button class="primary">Pagar fatura</button> } @else { <button class="secondary">Ver detalhes</button> }</article> }</section>
+      }
+    </main>
+  </div>
+}
+@if (toast()) { <div class="toast" role="status" aria-live="polite">{{ toast() }}</div> }

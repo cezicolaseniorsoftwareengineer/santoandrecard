@@ -1,0 +1,17 @@
+{
+  "task_id": "card-platform-mvp-001",
+  "artifact": "card-service-local-baseline",
+  "evidence_type": "clean-build-and-independent-review",
+  "observed": [
+    "Java 17 compilation succeeded",
+    "Nine automated tests passed with zero failures",
+    "Quarkus JVM artifact was built",
+    "Three independent read-only reviews completed"
+  ],
+  "decision": "Local educational baseline accepted; production and external exposure blocked",
+  "residual_risks": [
+    "No authentication or authorization",
+    "Concurrent idempotency is not proven against PostgreSQL",
+    "No backup/restore evidence or production SLO"
+  ]
+}
