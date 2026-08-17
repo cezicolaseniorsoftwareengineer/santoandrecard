@@ -16,6 +16,10 @@ or receive real customer data.
 - Hardened Kubernetes workload manifest with probes and resource limits.
 - OIDC bearer-token authentication against Keycloak, with `customer` and `admin`
   realm roles and deny-by-default access to every `/api` path.
+- Angular interface connected to the API through authorization code with PKCE,
+  reading cards, wallet, statement and the administrative summary.
+- Read endpoints for the calling customer: `GET /cards`, `GET /wallet` and
+  `GET /purchases`, all scoped to the identity in the token.
 - Tenant and customer identity derived from verified token claims, never from a
   request header or body.
 - Explicit tenant isolation in card, wallet, purchase and administrative queries.
@@ -42,9 +46,12 @@ minimum payment, delinquency, late fees, reversal and double-entry journal are
 specified in `engineering/ADR-002-card-wallet-financial-architecture.md` but are
 not implemented yet.
 
-The Angular application currently uses typed local fixtures and its login is still
-a UI demonstration. It does not yet perform the authorization-code with PKCE flow,
-so the browser journey is not connected to the authenticated API.
+The Angular application signs in through Keycloak with the authorization code flow
+and PKCE, and every figure it displays comes from an API response. It holds the
+access token in memory and the refresh token in `sessionStorage`, so closing the
+tab ends the session. Invoices, receivables and delinquency were removed from the
+interface: they have no backend and showing invented numbers next to real balances
+would make the interface untrustworthy.
 
 ## Resilience controls
 

@@ -31,6 +31,18 @@ public class FinanceResource {
         return Response.status(201).entity(service.topUp(caller.tenantId(), caller.customerId(), request.amount())).build();
     }
 
+    @GET @Path("/wallet")
+    @RolesAllowed(Roles.CUSTOMER)
+    public Object wallet() {
+        return service.wallet(caller.tenantId(), caller.customerId());
+    }
+
+    @GET @Path("/purchases")
+    @RolesAllowed(Roles.CUSTOMER)
+    public Object statement(@QueryParam("limit") @DefaultValue("50") int limit) {
+        return service.statement(caller.tenantId(), caller.customerId(), limit);
+    }
+
     @POST @Path("/purchases/quote")
     @RolesAllowed(Roles.CUSTOMER)
     public Object quote(@Valid QuoteRequest request) {

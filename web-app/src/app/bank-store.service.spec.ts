@@ -1,42 +1,72 @@
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { BankStore } from './bank-store.service';
+import { API_BASE_URL } from './auth.config';
+import { BankStore, describe as describeError } from './bank-store.service';
 
 describe('BankStore', () => {
   let store: BankStore;
-  beforeEach(() => { TestBed.configureTestingModule({}); store = TestBed.inject(BankStore); });
+  let http: HttpTestingController;
 
-  it('authenticates the selected demonstrative role without storing a password', () => {
-    expect(store.login('admin@santoandre.demo', 'ADMIN')).toBe(true);
-    expect(store.session()).toEqual({ name: 'Operador Santo André', role: 'ADMIN' });
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    store = TestBed.inject(BankStore);
+    http = TestBed.inject(HttpTestingController);
   });
 
-  it('rejects invalid deposits and preserves the balance', () => {
-    const balance = store.balance();
-    expect(store.addBalance(-10)).toBe(false);
-    expect(store.addBalance(50001)).toBe(false);
-    expect(store.balance()).toBe(balance);
+  afterEach(() => http.verify());
+
+  it('reads the wallet balance from the API instead of computing it locally', async () => {
+    const pending = store.addBalance(100);
+    const request = http.expectOne(`${API_BASE_URL}/wallet/top-ups`);
+    expect(request.request.body).toEqual({ amount: 100 });
+    request.flush({ customerId: 'c1', balance: 340.5 });
+
+    expect(await pending).toBeNull();
+    expect(store.balance()).toBe(340.5);
   });
 
-  it('adds a valid demonstrative deposit and transaction', () => {
-    const balance = store.balance();
-    expect(store.addBalance(100)).toBe(true);
-    expect(store.balance()).toBe(balance + 100);
-    expect(store.transactions()[0].kind).toBe('DEPOSIT');
+  it('never sends a customer identifier in the request body', async () => {
+    const pending = store.purchase('Padaria', 25, 1);
+    const request = http.expectOne(`${API_BASE_URL}/purchases`);
+    expect(Object.keys(request.request.body as object)).toEqual(['merchantCategory', 'amount', 'installments']);
+    request.flush({
+      id: 'p1', customerId: 'c1', merchantCategory: 'Padaria', principal: 25, interest: 0,
+      total: 25, installments: 1, installmentAmount: 25, remainingWalletBalance: 75, createdAt: '2026-08-17T00:00:00Z'
+    });
+
+    expect(await pending).toBeNull();
+    expect(store.balance()).toBe(75);
   });
 
-  it('calculates an interest-free purchase through six installments', () => {
-    const result = store.simulatePurchase('Shopping', 'Loja Teste', 600, 6);
-    expect(result?.installmentAmount).toBe(100);
-    expect(result?.totalAmount).toBe(600);
+  it('asks the API for the quote rather than calculating interest', async () => {
+    const pending = store.quote(600, 6);
+    const request = http.expectOne(`${API_BASE_URL}/purchases/quote`);
+    request.flush({ principal: 600, interest: 75.3, total: 675.3, installments: 6, installmentAmount: 112.55 });
+
+    expect(await pending).toEqual({ principal: 600, interest: 75.3, total: 675.3, installments: 6, installmentAmount: 112.55 });
   });
 
-  it('applies demonstrative compound interest above six installments', () => {
-    const result = store.simulatePurchase('Restaurante', 'Bistrô', 1000, 10);
-    expect(result?.totalAmount).toBeGreaterThan(1000);
-    expect(result?.installmentAmount).toBeCloseTo((1000 * Math.pow(1.0149, 10)) / 10, 2);
+  it('rejects an out-of-range instalment count before calling the API', async () => {
+    expect(await store.quote(100, 36)).toBe('O parcelamento aceita de 1 a 24 parcelas.');
   });
 
-  it('rejects purchases above the available card limit', () => {
-    expect(store.simulatePurchase('Padaria', 'Pão', store.availableLimit() + 1, 1)).toBeNull();
+  it('reports insufficient funds without discarding the balance', async () => {
+    const pending = store.purchase('Shopping', 999, 1);
+    http.expectOne(`${API_BASE_URL}/purchases`)
+      .flush({ code: 'INSUFFICIENT_FUNDS' }, { status: 422, statusText: 'Unprocessable Entity' });
+
+    expect(await pending).toBe('Saldo insuficiente para esta compra.');
+  });
+
+  it('states that nothing was debited when merchant authorization is unavailable', () => {
+    const message = describeError(new HttpErrorResponse({ status: 503, error: { code: 'MERCHANT_AUTHORIZATION_UNAVAILABLE' } }));
+    expect(message).toContain('Nenhum valor foi debitado');
+  });
+
+  it('distinguishes an unreachable backend from a denied request', () => {
+    expect(describeError(new HttpErrorResponse({ status: 0 }))).toContain('Serviço indisponível');
+    expect(describeError(new HttpErrorResponse({ status: 403 }))).toContain('permissão');
+    expect(describeError(new HttpErrorResponse({ status: 429 }))).toContain('alto volume');
   });
 });

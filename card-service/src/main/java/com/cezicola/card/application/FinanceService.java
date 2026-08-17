@@ -14,6 +14,7 @@ import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -108,6 +109,29 @@ public class FinanceService {
         policy.monthlyRate = monthlyRate;
         policy.updatedAt = clock.instant();
         return new InterestPolicyView(monthlyRate, policy.updatedAt);
+    }
+
+    /** Wallet of the calling customer. A customer with no wallet yet reads zero. */
+    public WalletView wallet(UUID tenantId, UUID customerId) {
+        WalletEntity wallet = entityManager.find(WalletEntity.class, WalletEntity.key(tenantId, customerId));
+        return new WalletView(customerId, wallet == null ? BigDecimal.ZERO.setScale(2) : wallet.balance);
+    }
+
+    /** Purchase statement of the calling customer, most recent first. */
+    public List<PurchaseView> statement(UUID tenantId, UUID customerId, int limit) {
+        return entityManager.createQuery("""
+                        select p from PurchaseEntity p
+                        where p.tenantId = :tenantId and p.customerId = :customerId
+                        order by p.createdAt desc
+                        """, PurchaseEntity.class)
+                .setParameter("tenantId", tenantId)
+                .setParameter("customerId", customerId)
+                .setMaxResults(Math.min(Math.max(limit, 1), 200))
+                .getResultList().stream()
+                // The wallet balance is a point-in-time value, not a per-purchase
+                // fact, so a statement row does not restate it.
+                .map(p -> PurchaseView.from(p, null))
+                .toList();
     }
 
     public AdminSummary adminSummary(UUID tenantId) {

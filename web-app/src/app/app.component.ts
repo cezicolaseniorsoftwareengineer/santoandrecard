@@ -1,42 +1,103 @@
-import { CommonModule, CurrencyPipe, DatePipe, registerLocaleData } from '@angular/common';
-import localePt from '@angular/common/locales/pt';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { AuthService } from './auth.service';
 import { BankStore } from './bank-store.service';
-import { MerchantCategory, PurchaseSimulation, UserRole } from './bank.models';
+import { MerchantCategory, PurchaseQuote } from './bank.models';
 
-type CustomerView = 'overview' | 'shopping' | 'statement' | 'invoice';
+type CustomerView = 'overview' | 'shopping' | 'statement';
 
-registerLocaleData(localePt, 'pt-BR');
-
-@Component({ selector: 'app-root', standalone: true, imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe], templateUrl: './app.component.html', styleUrl: './app.component.css', changeDetection: ChangeDetectionStrategy.OnPush })
-export class AppComponent {
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe],
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class AppComponent implements OnInit {
   readonly store = inject(BankStore);
+  private readonly auth = inject(AuthService);
+
   readonly view = signal<CustomerView>('overview');
   readonly balanceVisible = signal(true);
   readonly toast = signal('');
-  readonly simulation = signal<PurchaseSimulation | null>(null);
-  readonly isAdmin = computed(() => this.store.session()?.role === 'ADMIN');
-  email = 'cliente@santoandre.demo';
-  password = '';
-  role: UserRole = 'CUSTOMER';
+  readonly quote = signal<PurchaseQuote | null>(null);
+  readonly starting = signal(true);
+  readonly busy = signal(false);
+  readonly session = this.store.session;
+  readonly isAdmin = computed(() => this.session()?.role === 'ADMIN');
+
   depositAmount = 250;
   category: MerchantCategory = 'Shopping';
-  merchant = 'Shopping Santo André';
   purchaseAmount = 600;
   installments = 3;
+  monthlyRate = 0.0199;
   readonly categories: readonly MerchantCategory[] = ['Shopping', 'Padaria', 'Açougue', 'Restaurante', 'Farmácia'];
 
+  async ngOnInit(): Promise<void> {
+    const restored = await this.auth.restore();
+    if (restored) await this.reload();
+    this.starting.set(false);
+  }
+
   login(): void {
-    if (this.password.length < 6 || !this.store.login(this.email, this.role)) this.showToast('Informe e-mail e senha com pelo menos 6 caracteres.');
+    void this.auth.login();
   }
-  logout(): void { this.store.logout(); this.view.set('overview'); }
-  navigate(view: CustomerView): void { this.view.set(view); this.simulation.set(null); }
-  addBalance(): void { this.showToast(this.store.addBalance(this.depositAmount) ? 'Saldo demonstrativo adicionado.' : 'Informe um valor entre R$ 0,01 e R$ 50.000,00.'); }
-  simulate(): void {
-    const result = this.store.simulatePurchase(this.category, this.merchant, this.purchaseAmount, this.installments);
-    this.simulation.set(result);
-    if (!result) this.showToast('Revise o estabelecimento, o valor e as parcelas.');
+
+  logout(): void {
+    this.store.clear();
+    this.auth.logout();
   }
-  private showToast(message: string): void { this.toast.set(message); window.setTimeout(() => this.toast.set(''), 3500); }
+
+  navigate(view: CustomerView): void {
+    this.view.set(view);
+    this.quote.set(null);
+  }
+
+  async addBalance(): Promise<void> {
+    await this.run(() => this.store.addBalance(this.depositAmount), 'Saldo adicionado à carteira.');
+  }
+
+  async simulate(): Promise<void> {
+    this.busy.set(true);
+    const result = await this.store.quote(this.purchaseAmount, this.installments);
+    this.busy.set(false);
+    if (typeof result === 'string') {
+      this.quote.set(null);
+      this.showToast(result);
+      return;
+    }
+    this.quote.set(result);
+  }
+
+  async confirmPurchase(): Promise<void> {
+    await this.run(
+      () => this.store.purchase(this.category, this.purchaseAmount, this.installments),
+      'Compra autorizada.'
+    );
+    this.quote.set(null);
+  }
+
+  async applyInterestPolicy(): Promise<void> {
+    await this.run(() => this.store.setInterestPolicy(this.monthlyRate), 'Taxa mensal atualizada.');
+  }
+
+  async reload(): Promise<void> {
+    const error = await this.store.refresh();
+    if (error) this.showToast(error);
+  }
+
+  /** Runs an API action, showing either its failure message or the success text. */
+  private async run(action: () => Promise<string | null>, success: string): Promise<void> {
+    this.busy.set(true);
+    const error = await action();
+    this.busy.set(false);
+    this.showToast(error ?? success);
+  }
+
+  private showToast(message: string): void {
+    this.toast.set(message);
+    window.setTimeout(() => this.toast.set(''), 4000);
+  }
 }

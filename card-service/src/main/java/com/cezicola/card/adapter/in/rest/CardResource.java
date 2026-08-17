@@ -21,6 +21,7 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @Path("/api/v1/cards")
@@ -47,6 +48,14 @@ public class CardResource {
         var card = service.create(
                 new CreateCardCommand(caller.tenantId(), request.customerId(), request.creditLimit(), idempotencyKey));
         return Response.created(URI.create("/api/v1/cards/" + card.id())).entity(CardResponse.from(card)).build();
+    }
+
+    @GET
+    @RolesAllowed(Roles.CUSTOMER)
+    @Operation(summary = "List the calling customer's cards")
+    public List<CardResponse> list() {
+        return service.listForCustomer(caller.tenantId(), caller.customerId())
+                .stream().map(CardResponse::from).toList();
     }
 
     @GET

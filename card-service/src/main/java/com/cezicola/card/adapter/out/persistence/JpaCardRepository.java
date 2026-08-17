@@ -4,6 +4,7 @@ import com.cezicola.card.application.port.CardRepository;
 import com.cezicola.card.domain.Card;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,6 +26,12 @@ public class JpaCardRepository implements CardRepository {
     @Override
     public Optional<Card> findById(UUID tenantId, UUID id) {
         return entities.find("tenantId = ?1 and id = ?2", tenantId, id).firstResultOptional().map(JpaCardRepository::toDomain);
+    }
+
+    @Override
+    public List<Card> findByCustomer(UUID tenantId, UUID customerId) {
+        return entities.find("tenantId = ?1 and customerId = ?2 order by createdAt desc", tenantId, customerId)
+                .list().stream().map(JpaCardRepository::toDomain).toList();
     }
 
     @Override

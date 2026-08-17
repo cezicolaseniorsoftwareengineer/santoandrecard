@@ -9,6 +9,7 @@ import jakarta.transaction.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -52,5 +53,9 @@ public class CardService {
 
     public Card get(UUID tenantId, UUID id) {
         return repository.findById(tenantId, id).orElseThrow(() -> new CardNotFoundException(id));
+    }
+
+    public List<Card> listForCustomer(UUID tenantId, UUID customerId) {
+        return repository.findByCustomer(tenantId, customerId);
     }
 }
