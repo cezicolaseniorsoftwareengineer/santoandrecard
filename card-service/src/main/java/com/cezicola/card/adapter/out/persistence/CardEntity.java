@@ -7,6 +7,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
@@ -14,7 +15,11 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "cards")
+// The unique constraint is declared here as well as in the migration so the
+// schema generated for tests matches the one running in production. Without it
+// the suite silently loses the guarantee it is supposed to be checking.
+@Table(name = "cards", uniqueConstraints = @UniqueConstraint(
+        name = "uq_cards_tenant_idempotency", columnNames = {"tenant_id", "idempotency_key"}))
 public class CardEntity {
     @Id
     public UUID id;

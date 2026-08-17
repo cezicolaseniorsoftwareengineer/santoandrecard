@@ -36,9 +36,12 @@ yet application dependencies: PostgreSQL is the only source of truth in this
 increment. The next services are authorization (available-limit reservation,
 Redis cache and Kafka events) and ledger (double-entry postings and reconciliation).
 
-Current idempotency covers retries made after the first transaction commits and
-rejects reuse with a different payload. Atomic convergence under concurrent
-requests remains blocked until the PostgreSQL integration suite is introduced.
+Idempotency holds under concurrency, not only for sequential retries. Checking for
+an existing key and then inserting cannot be atomic on its own, so the unique
+index on `(tenant_id, idempotency_key)` is what enforces the guarantee: a caller
+that loses the race reads the winning card and returns it. Reusing a key with a
+different payload is still refused with `409`. `CardIdempotencyConcurrencyTest`
+fires overlapping requests and fails if either property is lost.
 
 The current installment flow is deliberately simplified: it calculates interest
 and debits the simulated wallet total immediately. Monthly invoices, receivables,
@@ -81,8 +84,14 @@ npm audit --audit-level=high
 ```
 
 The automated test profile uses H2 in PostgreSQL compatibility mode for fast
-feedback. Before production, run the same contracts against PostgreSQL with a
-working container runtime; H2 passing is not evidence of PostgreSQL equivalence.
+feedback. H2 passing is not evidence of PostgreSQL equivalence, and it has already
+accepted a schema that real PostgreSQL rejected, so `.github/workflows/build.yml`
+boots the packaged application against PostgreSQL on every push: Flyway runs the
+real migrations and Hibernate validates the mapping against the real column types.
+
+Constraints that the suite relies on are declared on the entity as well as in the
+migration. The test schema is generated from the entities, so a constraint that
+lives only in SQL would be absent exactly where it is being tested.
 
 ## Run locally
 
