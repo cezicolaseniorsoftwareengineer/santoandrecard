@@ -66,11 +66,11 @@ existing Micrometer/Prometheus integration.
 Set `JAVA_HOME` to a JDK 17 installation, then run:
 
 ```powershell
-mvn.cmd -B verify
+mvn -B verify
 cd web-app
-npm.cmd test
-npm.cmd run build
-npm.cmd audit --audit-level=high
+npm test
+npm run build
+npm audit --audit-level=high
 ```
 
 The automated test profile uses H2 in PostgreSQL compatibility mode for fast
@@ -81,7 +81,7 @@ working container runtime; H2 passing is not evidence of PostgreSQL equivalence.
 
 ```powershell
 docker compose up -d postgres redis kafka keycloak
-mvn.cmd -pl card-service quarkus:dev
+mvn -pl card-service quarkus:dev
 ```
 
 Swagger UI is available at `http://localhost:8080/q/swagger-ui` in development.
@@ -123,7 +123,7 @@ Run the Angular interface separately:
 
 ```powershell
 cd web-app
-npm.cmd start
+npm start
 ```
 
 The interface is then available at `http://localhost:4200`.
