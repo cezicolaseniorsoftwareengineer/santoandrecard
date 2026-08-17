@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: card-platform
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - keycloak.yaml
+  - card-service.yaml
+
+# The Secret is intentionally not listed: card-service-secret.example.yaml is a
+# template. Create the real Secret out-of-band (external secret store, sealed
+# secret, or `kubectl create secret generic`) before applying this kustomization.
+# It must carry both `db-password` and `keycloak-admin-password`.
+#
+# The `keycloak-realm` ConfigMap is created out-of-band for the same reason: the
+# realm definition lives at keycloak/realm-card-platform.json, outside this
+# kustomization root. Create it with:
+#   kubectl -n card-platform create configmap keycloak-realm \
+#     --from-file=../keycloak/realm-card-platform.json

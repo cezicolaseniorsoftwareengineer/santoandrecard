@@ -1,0 +1,98 @@
+﻿{
+  "realm": "card-platform",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 900,
+  "roles": {
+    "realm": [
+      { "name": "customer", "description": "Cardholder acting on their own wallet and cards" },
+      { "name": "admin", "description": "Issuer operator: card issuance and portfolio administration" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "card-service",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "customer_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "customer_id",
+            "claim.name": "customer_id",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "operador.santoandre",
+      "enabled": true,
+      "email": "operador.santoandre@local.invalid",
+      "emailVerified": true,
+      "requiredActions": [],
+      "firstName": "Operador",
+      "lastName": "Santo Andre",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "local-only-admin", "temporary": false }],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "cliente.ana",
+      "enabled": true,
+      "email": "cliente.ana@local.invalid",
+      "emailVerified": true,
+      "requiredActions": [],
+      "firstName": "Ana",
+      "lastName": "Cardoso",
+      "attributes": {
+        "tenant_id": ["11111111-1111-1111-1111-111111111111"],
+        "customer_id": ["22222222-2222-2222-2222-222222222222"]
+      },
+      "credentials": [{ "type": "password", "value": "local-only-customer", "temporary": false }],
+      "realmRoles": ["customer"]
+    },
+    {
+      "username": "cliente.bruno",
+      "enabled": true,
+      "email": "cliente.bruno@local.invalid",
+      "emailVerified": true,
+      "requiredActions": [],
+      "firstName": "Bruno",
+      "lastName": "Lima",
+      "attributes": {
+        "tenant_id": ["11111111-1111-1111-1111-111111111111"],
+        "customer_id": ["33333333-3333-3333-3333-333333333333"]
+      },
+      "credentials": [{ "type": "password", "value": "local-only-customer", "temporary": false }],
+      "realmRoles": ["customer"]
+    }
+  ]
+}
+

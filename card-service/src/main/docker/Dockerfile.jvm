@@ -1,10 +1,21 @@
+# Quarkus fast-jar runtime image for card-service.
+# Build the artifact first: mvn -pl card-service -am clean package
+# Then: docker build -f card-service/src/main/docker/Dockerfile.jvm -t card-service:0.1.0 card-service
 FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:1.23
 
-ENV LANGUAGE='en_US:en'
-COPY --chown=185 target/quarkus-app/lib/ /deployments/lib/
-COPY --chown=185 target/quarkus-app/*.jar /deployments/
-COPY --chown=185 target/quarkus-app/app/ /deployments/app/
-COPY --chown=185 target/quarkus-app/quarkus/ /deployments/quarkus/
+ENV LANGUAGE='en_US:en' \
+    JAVA_OPTS_APPEND="-Djava.io.tmpdir=/tmp -Dquarkus.http.host=0.0.0.0"
+
+# The fast-jar layout is copied in dependency-first order so that application
+# layers stay small and cacheable across rebuilds.
+COPY --chown=185:root target/quarkus-app/lib/ /deployments/lib/
+COPY --chown=185:root target/quarkus-app/*.jar /deployments/
+COPY --chown=185:root target/quarkus-app/app/ /deployments/app/
+COPY --chown=185:root target/quarkus-app/quarkus/ /deployments/quarkus/
+
 EXPOSE 8080
 USER 185
-ENV JAVA_APP_JAR='/deployments/quarkus-run.jar'
+
+ENV JAVA_APP_JAR="/deployments/quarkus-run.jar"
+
+ENTRYPOINT ["/opt/jboss/container/java/run/run-java.sh"]

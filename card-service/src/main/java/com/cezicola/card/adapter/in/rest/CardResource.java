@@ -1,10 +1,12 @@
 package com.cezicola.card.adapter.in.rest;
 
+import com.cezicola.card.application.CardNotFoundException;
 import com.cezicola.card.application.CardService;
 import com.cezicola.card.application.CreateCardCommand;
+import io.quarkus.security.identity.SecurityIdentity;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -27,24 +29,37 @@ import java.util.UUID;
 @Tag(name = "Cards")
 public class CardResource {
     private final CardService service;
+    private final AuthenticatedCaller caller;
+    private final SecurityIdentity identity;
 
-    public CardResource(CardService service) {
+    public CardResource(CardService service, AuthenticatedCaller caller, SecurityIdentity identity) {
         this.service = service;
+        this.caller = caller;
+        this.identity = identity;
     }
 
+    /** Issuing a card is an issuer action, so it is restricted to the admin role. */
     @POST
+    @RolesAllowed(Roles.ADMIN)
     @Operation(summary = "Create a credit card idempotently")
     public Response create(@HeaderParam("Idempotency-Key") @NotBlank @Size(max = 128) String idempotencyKey,
-                           @HeaderParam("X-Tenant-Id") @NotNull UUID tenantId,
                            @Valid CreateCardRequest request) {
-        var card = service.create(new CreateCardCommand(tenantId, request.customerId(), request.creditLimit(), idempotencyKey));
+        var card = service.create(
+                new CreateCardCommand(caller.tenantId(), request.customerId(), request.creditLimit(), idempotencyKey));
         return Response.created(URI.create("/api/v1/cards/" + card.id())).entity(CardResponse.from(card)).build();
     }
 
     @GET
     @Path("/{id}")
+    @RolesAllowed({Roles.CUSTOMER, Roles.ADMIN})
     @Operation(summary = "Get a credit card by identifier")
-    public CardResponse get(@HeaderParam("X-Tenant-Id") @NotNull UUID tenantId, @PathParam("id") UUID id) {
-        return CardResponse.from(service.get(tenantId, id));
+    public CardResponse get(@PathParam("id") UUID id) {
+        var card = service.get(caller.tenantId(), id);
+        if (!identity.hasRole(Roles.ADMIN) && !card.customerId().equals(caller.customerId())) {
+            // Report the same 404 as a non-existent card so the response does not
+            // reveal that another customer holds this identifier.
+            throw new CardNotFoundException(id);
+        }
+        return CardResponse.from(card);
     }
 }

@@ -5,6 +5,7 @@ import com.cezicola.card.adapter.out.persistence.PurchaseEntity;
 import com.cezicola.card.adapter.out.persistence.WalletEntity;
 import com.cezicola.card.domain.InterestCalculator;
 import com.cezicola.card.domain.PurchasePlan;
+import com.cezicola.card.application.port.MerchantAuthorizationPort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -19,11 +20,17 @@ import java.util.UUID;
 public class FinanceService {
     private final EntityManager entityManager;
     private final InterestCalculator calculator;
+    private final MerchantAuthorizationPort merchantAuthorization;
+    private final PurchaseBackpressureGuard backpressure;
     private final Clock clock = Clock.systemUTC();
 
-    public FinanceService(EntityManager entityManager, InterestCalculator calculator) {
+    public FinanceService(EntityManager entityManager, InterestCalculator calculator,
+                          MerchantAuthorizationPort merchantAuthorization,
+                          PurchaseBackpressureGuard backpressure) {
         this.entityManager = entityManager;
         this.calculator = calculator;
+        this.merchantAuthorization = merchantAuthorization;
+        this.backpressure = backpressure;
     }
 
     @Transactional
@@ -49,10 +56,20 @@ public class FinanceService {
     @Transactional
     public PurchaseView purchase(UUID tenantId, UUID customerId, String merchantCategory,
                                  BigDecimal principal, int installments) {
+        return backpressure.execute(
+                () -> executePurchase(tenantId, customerId, merchantCategory, principal, installments));
+    }
+
+    private PurchaseView executePurchase(UUID tenantId, UUID customerId, String merchantCategory,
+                                          BigDecimal principal, int installments) {
         if (merchantCategory == null || merchantCategory.isBlank() || merchantCategory.length() > 64) {
             throw new IllegalArgumentException("merchantCategory must contain 1 to 64 characters");
         }
         PurchasePlan plan = quote(tenantId, principal, installments);
+        var decision = merchantAuthorization.authorize(tenantId, customerId, merchantCategory, plan.total());
+        if (decision != MerchantAuthorizationPort.AuthorizationDecision.APPROVED) {
+            throw new MerchantAuthorizationUnavailableException();
+        }
         WalletEntity wallet = lockedWallet(tenantId, customerId);
         if (wallet == null || wallet.balance.compareTo(plan.total()) < 0) {
             throw new InsufficientFundsException();

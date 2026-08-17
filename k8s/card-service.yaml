@@ -5,6 +5,8 @@ metadata:
 data:
   DB_URL: jdbc:postgresql://postgres:5432/card_platform
   DB_USERNAME: card_app
+  OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/card-platform
+  OIDC_CLIENT_ID: card-service
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -24,12 +26,26 @@ spec:
     spec:
       automountServiceAccountToken: false
       securityContext:
+        # The image runs as UID 185 (jboss). Declaring it here keeps the pod
+        # admissible under the restricted Pod Security Standard even if the
+        # image is rebuilt without a USER directive.
+        runAsNonRoot: true
+        runAsUser: 185
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: card-service
       containers:
         - name: card-service
-          image: card-service:0.1.0
+          # Tags must be immutable: reusing a tag leaves nodes serving a stale
+          # cached image under imagePullPolicy IfNotPresent.
+          image: card-service:0.2.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -74,6 +90,14 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          volumeMounts:
+            # readOnlyRootFilesystem leaves the JVM without a writable
+            # java.io.tmpdir; Quarkus and Flyway both need one to start.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -86,3 +110,13 @@ spec:
     - name: http
       port: 80
       targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: card-service
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: card-service
