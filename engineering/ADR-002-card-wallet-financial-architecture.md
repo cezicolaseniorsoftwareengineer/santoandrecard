@@ -7,7 +7,7 @@
 
 ## Context and boundaries
 
-The product is an original educational simulation. It may reproduce common card-domain behavior, but it must not copy any real institution's branding, source code, private APIs, product terms, screens or imply affiliation. No real deposit, card-network authorization, acquiring, settlement or regulated banking operation is in scope.
+The product is an original educational simulation for the fictitious Banco Santo André. It may reproduce common card-domain behavior, but it must not copy any real institution's branding, source code, private APIs, product terms or screens, and must not imply affiliation with one. No real deposit, card-network authorization, acquiring, settlement or regulated banking operation is in scope.
 
 The current repository contains a Quarkus `card-service` with a `Card` aggregate and PostgreSQL persistence. PostgreSQL is the authoritative store. Redis and Kafka are infrastructure seams, not financial sources of truth.
 

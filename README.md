@@ -1,9 +1,10 @@
 # Banco Santo André Card Platform
 
-Educational credit-card platform MVP built with Java 17 and Quarkus. It is not
-third-party source code and does not claim compatibility with proprietary
-systems. It must not be exposed outside an isolated local development environment
-or receive real customer data.
+Educational credit-card platform MVP built with Java 17 and Quarkus. Banco Santo
+André is a fictitious institution created for this project. The work is original:
+it derives from no bank's source code, carries no third-party branding and claims
+no compatibility with any proprietary system. It must not be exposed outside an
+isolated local development environment or receive real customer data.
 
 ## Delivered increments
 
