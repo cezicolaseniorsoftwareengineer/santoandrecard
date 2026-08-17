@@ -1,69 +1,54 @@
 /*
  * Banco Santo André — design tokens.
  *
- * The palette is taken from the brand mark itself: navy leads, forest green
- * supports, gold accents. The previous interface led with green, which put the
- * least dominant colour of the logo in charge of the whole screen.
- *
- * Type is deliberately system-resident. A card product that pauses on a blank
- * screen while a font downloads reads as slow, and money must never reflow after
- * paint, so numerals are locked to tabular figures everywhere.
+ * Restraint is the rule. Surfaces are flat, separation comes from a single
+ * hairline, and there are no shadows: depth is implied by spacing and alignment,
+ * not by glow. One accent colour carries the interface; green marks a positive
+ * state and gold appears only on the card face.
  */
 :root {
-  /* Brand */
-  --navy-900: #05182e;
-  --navy-800: #0a2340;
+  /* Brand — taken from the mark: navy leads, green supports, gold accents */
+  --navy-900: #071a30;
+  --navy-800: #0b2340;
   --navy-700: #0d2749;
-  --navy-600: #14375f;
-  --navy-500: #1d4b7c;
+  --navy-100: #eaeef4;
+  --navy-050: #f4f6fa;
 
-  --green-700: #084d34;
   --green-600: #0b6b4a;
-  --green-500: #12875d;
+  --green-050: #edf5f1;
 
-  --gold-600: #a8842a;
   --gold-500: #c9a23c;
-  --gold-400: #e3bf63;
-  --gold-200: #f0dcae;
+  --gold-300: #e0c17f;
 
   /* Neutrals */
-  --ink: #0c1a26;
-  --ink-soft: #3d4f5e;
-  --muted: #64798a;
-  --line: #dfe4ea;
-  --line-soft: #eceff3;
+  --ink: #14181d;
+  --ink-soft: #454f5b;
+  --muted: #737f8b;
+  --faint: #9aa4ae;
+  --line: #e6e9ed;
+  --line-strong: #d4d9e0;
   --surface: #ffffff;
-  --canvas: #f3f5f8;
-  --platinum: #e7eaee;
+  --canvas: #f7f8fa;
 
-  /* Semantic */
   --positive: #0b6b4a;
-  --attention: #a8842a;
-  --danger: #9b2c2c;
+  --danger: #a02c2c;
 
-  /* Type */
-  --font-display: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
   --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* Rhythm — everything is a multiple of 4px */
+  /* Four-pixel rhythm */
   --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
   --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
 
   --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
-
-  /* Elevation stays restrained: a bank interface should feel printed, not glassy */
-  --shadow-sm: 0 1px 2px rgba(5, 24, 46, .06), 0 2px 8px rgba(5, 24, 46, .04);
-  --shadow-md: 0 2px 6px rgba(5, 24, 46, .08), 0 12px 28px rgba(5, 24, 46, .07);
-  --shadow-lg: 0 18px 48px rgba(5, 24, 46, .18);
+  --radius-md: 12px;
 
   font-family: var(--font-ui);
   color: var(--ink);
   background: var(--canvas);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
-  /* Money and identifiers must align column-wise, always. */
+  text-rendering: optimizeLegibility;
+  /* Money must align column-wise and must not reflow as it changes. */
   font-variant-numeric: tabular-nums lining-nums;
 }
 
@@ -79,13 +64,13 @@ button, input, select, textarea {
 }
 
 button { cursor: pointer; }
-button:disabled { cursor: not-allowed; opacity: .55; }
+button:disabled { cursor: not-allowed; opacity: .5; }
 
 img { max-width: 100%; }
 
 :where(button, a, input, select, [tabindex]):focus-visible {
-  outline: 2px solid var(--gold-500);
-  outline-offset: 3px;
+  outline: 2px solid var(--navy-700);
+  outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
