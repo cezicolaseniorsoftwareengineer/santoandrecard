@@ -6,7 +6,12 @@
     <base href="/">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Ambiente demonstrativo de cartões do Banco Santo André">
-    <meta name="theme-color" content="#073c36">
+    <meta name="theme-color" content="#000000">
+    <style>
+      /* Painted before the application bundle runs, so the first frame is already
+         the splash colour instead of a white flash. */
+      html, body { background: #000; }
+    </style>
   </head>
   <body><app-root></app-root></body>
 </html>

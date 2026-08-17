@@ -1,5 +1,11 @@
+@if (splash()) {
+  <div class="splash" [class.splash--leaving]="!starting()" role="status" aria-label="Iniciando Banco Santo André">
+    <img src="assets/brand/banco-santo-andre-logo.png" alt="Banco Santo André">
+    <span class="splash-progress"><i></i></span>
+  </div>
+}
 @if (starting()) {
-  <main class="login-shell"><section class="login-panel"><div class="login-card"><h2>Carregando…</h2></div></section></main>
+  <main class="boot-shell"></main>
 } @else if (!session()) {
   <main class="login-shell">
     <section class="login-story" aria-label="Apresentação do Banco Santo André">

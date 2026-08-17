@@ -9,6 +9,58 @@
 
 :host { display: block; min-height: 100vh; }
 
+/* -------------------------------------------------------------------- splash */
+
+/* Covers the whole viewport while the session is restored. The mark is reversed
+   to white on black: at this moment the product has nothing to say yet, so it
+   says only who it is. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s7);
+  background: #000;
+  opacity: 1;
+  transition: opacity .4s ease;
+}
+.splash--leaving { opacity: 0; pointer-events: none; }
+
+.splash img {
+  width: min(232px, 56vw);
+  filter: brightness(0) invert(1);
+  animation: splash-mark .7s ease-out both;
+}
+@keyframes splash-mark {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.splash-progress {
+  width: 132px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .16);
+  overflow: hidden;
+}
+.splash-progress i {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: #fff;
+  animation: splash-sweep 1.1s ease-in-out infinite;
+}
+@keyframes splash-sweep {
+  from { transform: translateX(-110%); }
+  to   { transform: translateX(340%); }
+}
+
+/* The surface behind the splash while it fades, so nothing shows through. */
+.boot-shell { min-height: 100vh; background: #000; }
+
 /* ---------------------------------------------------------------- primitives */
 
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.011em; color: var(--ink); }

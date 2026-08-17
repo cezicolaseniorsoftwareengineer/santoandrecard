@@ -4,6 +4,8 @@ import com.cezicola.card.adapter.out.persistence.InterestPolicyEntity;
 import com.cezicola.card.adapter.out.persistence.PurchaseEntity;
 import com.cezicola.card.adapter.out.persistence.WalletEntity;
 import com.cezicola.card.domain.InterestCalculator;
+import com.cezicola.card.domain.JournalEntry;
+import com.cezicola.card.domain.LedgerAccount;
 import com.cezicola.card.domain.PurchasePlan;
 import com.cezicola.card.application.port.MerchantAuthorizationPort;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,15 +25,18 @@ public class FinanceService {
     private final InterestCalculator calculator;
     private final MerchantAuthorizationPort merchantAuthorization;
     private final PurchaseBackpressureGuard backpressure;
+    private final LedgerService ledger;
     private final Clock clock = Clock.systemUTC();
 
     public FinanceService(EntityManager entityManager, InterestCalculator calculator,
                           MerchantAuthorizationPort merchantAuthorization,
-                          PurchaseBackpressureGuard backpressure) {
+                          PurchaseBackpressureGuard backpressure,
+                          LedgerService ledger) {
         this.entityManager = entityManager;
         this.calculator = calculator;
         this.merchantAuthorization = merchantAuthorization;
         this.backpressure = backpressure;
+        this.ledger = ledger;
     }
 
     @Transactional
@@ -47,6 +52,18 @@ public class FinanceService {
             entityManager.persist(wallet);
         }
         wallet.balance = wallet.balance.add(amount);
+
+        // Funds enter the platform and the issuer's debt to the customer grows by
+        // the same amount. Recorded in the same transaction as the balance change,
+        // so the two can never disagree.
+        ledger.record(tenantId, new JournalEntry(
+                JournalEntry.Kind.TOP_UP,
+                "Adição de saldo em carteira",
+                null,
+                List.of(
+                        JournalEntry.Posting.debit(LedgerAccount.FUNDING, null, amount),
+                        JournalEntry.Posting.credit(LedgerAccount.CUSTOMER_WALLET, customerId, amount))));
+
         return new WalletView(customerId, wallet.balance);
     }
 
@@ -88,6 +105,20 @@ public class FinanceService {
         purchase.installmentAmount = plan.installmentAmount();
         purchase.createdAt = clock.instant();
         entityManager.persist(purchase);
+
+        // The wallet pays the full amount; the principal becomes a debt to the
+        // merchant and the interest becomes revenue. Splitting the credit side is
+        // what makes interest visible in the book instead of being buried in a
+        // single net movement.
+        var postings = new java.util.ArrayList<JournalEntry.Posting>();
+        postings.add(JournalEntry.Posting.debit(LedgerAccount.CUSTOMER_WALLET, customerId, plan.total()));
+        postings.add(JournalEntry.Posting.credit(LedgerAccount.MERCHANT_PAYABLE, null, plan.principal()));
+        if (plan.interest().signum() > 0) {
+            postings.add(JournalEntry.Posting.credit(LedgerAccount.INTEREST_REVENUE, null, plan.interest()));
+        }
+        ledger.record(tenantId, new JournalEntry(
+                JournalEntry.Kind.PURCHASE, "Compra em " + purchase.merchantCategory, purchase.id, postings));
+
         return PurchaseView.from(purchase, wallet.balance);
     }
 

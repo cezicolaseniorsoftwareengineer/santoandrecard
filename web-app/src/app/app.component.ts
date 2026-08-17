@@ -24,6 +24,8 @@ export class AppComponent implements OnInit {
   readonly toast = signal('');
   readonly quote = signal<PurchaseQuote | null>(null);
   readonly starting = signal(true);
+  /** Kept mounted through the fade so the black surface does not blink away. */
+  readonly splash = signal(true);
   readonly busy = signal(false);
   readonly session = this.store.session;
   readonly isAdmin = computed(() => this.session()?.role === 'ADMIN');
@@ -35,10 +37,19 @@ export class AppComponent implements OnInit {
   monthlyRate = 0.0199;
   readonly categories: readonly MerchantCategory[] = ['Shopping', 'Padaria', 'Açougue', 'Restaurante', 'Farmácia'];
 
+  /** Long enough for the mark to register, short enough not to be a delay. */
+  private static readonly SPLASH_MS = 1100;
+
   async ngOnInit(): Promise<void> {
+    const shown = new Promise(resolve => window.setTimeout(resolve, AppComponent.SPLASH_MS));
     const restored = await this.auth.restore();
     if (restored) await this.reload();
+
+    // Waiting for both means the splash never flashes on a fast start and never
+    // hides an interface that is not ready yet on a slow one.
+    await shown;
     this.starting.set(false);
+    window.setTimeout(() => this.splash.set(false), 420);
   }
 
   login(): void {
