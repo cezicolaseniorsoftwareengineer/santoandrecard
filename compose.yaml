@@ -1,3 +1,8 @@
+# Pinned so the project identity does not come from the directory name. Without
+# it, renaming the folder makes Compose treat everything as a new project and the
+# existing containers and the postgres volume are left orphaned.
+name: santo-andre-card
+
 services:
   postgres:
     image: postgres:17-alpine
