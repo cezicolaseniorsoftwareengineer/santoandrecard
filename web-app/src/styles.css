@@ -1,1 +1,97 @@
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#183c37;background:#f5f6f3;font-synthesis:none}*{box-sizing:border-box}body{margin:0}button,input,select{font-family:inherit}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #d0ab50;outline-offset:2px}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+/*
+ * Banco Santo André — design tokens.
+ *
+ * The palette is taken from the brand mark itself: navy leads, forest green
+ * supports, gold accents. The previous interface led with green, which put the
+ * least dominant colour of the logo in charge of the whole screen.
+ *
+ * Type is deliberately system-resident. A card product that pauses on a blank
+ * screen while a font downloads reads as slow, and money must never reflow after
+ * paint, so numerals are locked to tabular figures everywhere.
+ */
+:root {
+  /* Brand */
+  --navy-900: #05182e;
+  --navy-800: #0a2340;
+  --navy-700: #0d2749;
+  --navy-600: #14375f;
+  --navy-500: #1d4b7c;
+
+  --green-700: #084d34;
+  --green-600: #0b6b4a;
+  --green-500: #12875d;
+
+  --gold-600: #a8842a;
+  --gold-500: #c9a23c;
+  --gold-400: #e3bf63;
+  --gold-200: #f0dcae;
+
+  /* Neutrals */
+  --ink: #0c1a26;
+  --ink-soft: #3d4f5e;
+  --muted: #64798a;
+  --line: #dfe4ea;
+  --line-soft: #eceff3;
+  --surface: #ffffff;
+  --canvas: #f3f5f8;
+  --platinum: #e7eaee;
+
+  /* Semantic */
+  --positive: #0b6b4a;
+  --attention: #a8842a;
+  --danger: #9b2c2c;
+
+  /* Type */
+  --font-display: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Rhythm — everything is a multiple of 4px */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+
+  /* Elevation stays restrained: a bank interface should feel printed, not glassy */
+  --shadow-sm: 0 1px 2px rgba(5, 24, 46, .06), 0 2px 8px rgba(5, 24, 46, .04);
+  --shadow-md: 0 2px 6px rgba(5, 24, 46, .08), 0 12px 28px rgba(5, 24, 46, .07);
+  --shadow-lg: 0 18px 48px rgba(5, 24, 46, .18);
+
+  font-family: var(--font-ui);
+  color: var(--ink);
+  background: var(--canvas);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  /* Money and identifiers must align column-wise, always. */
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; }
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  font-variant-numeric: inherit;
+  color: inherit;
+}
+
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+
+img { max-width: 100%; }
+
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold-500);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
