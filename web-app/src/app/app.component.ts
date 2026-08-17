@@ -56,6 +56,10 @@ export class AppComponent implements OnInit {
     void this.auth.login();
   }
 
+  register(): void {
+    void this.auth.register();
+  }
+
   logout(): void {
     this.store.clear();
     this.auth.logout();

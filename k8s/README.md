@@ -5,7 +5,7 @@ Target: any conformant cluster. Verified layout only; see "Verification status".
 ## Prerequisites
 
 - A reachable cluster (`kubectl cluster-info` must succeed).
-- A container image `card-service:0.1.0` present in the cluster's image store
+- A container image `card-service:0.2.0` present in the cluster's image store
   (`imagePullPolicy: IfNotPresent`, no registry is configured).
 
 ## 1. Build the image
@@ -13,11 +13,11 @@ Target: any conformant cluster. Verified layout only; see "Verification status".
 ```sh
 mvn -pl card-service -am clean package
 docker build -f card-service/src/main/docker/Dockerfile.jvm \
-  -t card-service:0.1.0 card-service
+  -t card-service:0.2.0 card-service
 ```
 
 On a non-Docker-Desktop cluster the image must be side-loaded, e.g.
-`kind load docker-image card-service:0.1.0` or `minikube image load`.
+`kind load docker-image card-service:0.2.0` or `minikube image load`.
 
 ## 2. Create the database Secret
 
@@ -60,7 +60,21 @@ curl -fsS http://localhost:8080/q/health/ready
 
 ## Verification status
 
-BUILD NAO VERIFICADO / DEPLOY NAO VERIFICADO. No cluster was reachable when
-these manifests were written (Docker Desktop's WSL backend was broken), so they
-were not validated with `kubectl apply --dry-run=server` and the image was
-never built. Run steps 1-4 before trusting them.
+BUILD VERIFICADO COM SUCESSO / DEPLOY VERIFICADO. Steps 1-4 were executed on a
+Docker Desktop cluster: the image was built as `card-service:0.2.0`, the
+kustomization applied, and `postgres-0`, `keycloak` and `card-service` all
+reached `1/1 Running`. `/q/health/ready` returned `UP` with the database check
+`UP` through `port-forward`, and `/api/v1/cards` without a token returned `401`.
+
+Two defects were found and fixed by that run, both from inheriting the 1s
+default probe timeout on a contended node: PostgreSQL was restarted repeatedly
+while healthy because `pg_isready` could not complete an exec in 1s, and
+`card-service` never finished its startup budget. Probe timeouts are now
+explicit in `postgres.yaml` and `card-service.yaml`.
+
+The image tag is the one in `card-service.yaml` (`0.2.0`), not the `0.1.0` this
+document used to state in step 1.
+
+Two replicas saturate a single-node laptop cluster that is also running the
+Compose stack. `kubectl -n card-platform scale deploy/card-service --replicas=1`
+if the node starts evicting or the API server times out.

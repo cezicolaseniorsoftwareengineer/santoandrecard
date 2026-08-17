@@ -49,6 +49,20 @@ export class AuthService {
 
   /** Redirects the browser to Keycloak. Resolves only if the redirect is blocked. */
   async login(): Promise<void> {
+    return this.authorize('auth');
+  }
+
+  /**
+   * Same authorization code flow, entered at the provider's registration screen.
+   * Account creation stays in the identity provider: the application never sees
+   * or stores a password, and a self-registered account arrives already carrying
+   * the realm's default `customer` role.
+   */
+  async register(): Promise<void> {
+    return this.authorize('registrations');
+  }
+
+  private async authorize(endpoint: 'auth' | 'registrations'): Promise<void> {
     const verifier = this.randomString(64);
     const state = this.randomString(32);
     sessionStorage.setItem(VERIFIER_KEY, verifier);
@@ -63,7 +77,7 @@ export class AuthService {
       code_challenge: await this.challengeFor(verifier),
       code_challenge_method: 'S256'
     });
-    window.location.assign(`${AUTH_CONFIG.issuer}/protocol/openid-connect/auth?${params}`);
+    window.location.assign(`${AUTH_CONFIG.issuer}/protocol/openid-connect/${endpoint}?${params}`);
   }
 
   /**

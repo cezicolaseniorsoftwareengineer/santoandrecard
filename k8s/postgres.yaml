@@ -60,16 +60,25 @@ spec:
             # carry a lost+found entry that initdb refuses to initialise into.
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+          # An exec probe pays for a container exec on every attempt, which on a
+          # busy node exceeds the 1s default timeout while the database is
+          # perfectly healthy. That restarted a working PostgreSQL under load,
+          # so the timeout is explicit and liveness tolerates a burst of slow
+          # probes before it declares the process dead.
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "card_app", "-d", "card_platform"]
             initialDelaySeconds: 5
             periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 6
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "card_app", "-d", "card_platform"]
             initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

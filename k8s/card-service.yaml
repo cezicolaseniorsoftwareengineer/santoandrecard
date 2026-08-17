@@ -59,24 +59,32 @@ spec:
                 secretKeyRef:
                   name: card-service-secrets
                   key: db-password
+          # The 1s default probe timeout is shorter than a JVM start on a
+          # contended node, and the startup budget has to cover Flyway running
+          # the migrations. Both were too tight to boot here, so the timeout and
+          # the startup budget are explicit rather than inherited.
           readinessProbe:
             httpGet:
               path: /q/health/ready
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
+            timeoutSeconds: 3
           startupProbe:
             httpGet:
               path: /q/health/started
               port: http
-            failureThreshold: 30
+            failureThreshold: 90
             periodSeconds: 2
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /q/health/live
               port: http
             initialDelaySeconds: 15
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

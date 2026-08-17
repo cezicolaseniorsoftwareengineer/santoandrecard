@@ -114,20 +114,33 @@ customer: those values are read from the verified token only.
 - `customer` — own wallet, own purchases, own cards.
 - `admin` — card issuance, interest policy and the portfolio summary.
 
-The local realm ships three development users whose passwords are fixtures and
-must never be reused:
+## Accounts
+
+Customers create their own account. The interface offers "Criar minha conta",
+which enters the same authorization code flow at the provider's registration
+screen, so the application never sees or stores a password. Self-registration is
+enabled on the realm and every new account inherits the realm default role
+`customer`, which is what grants access to the cardholder dashboard.
+
+Identity claims are issued by the provider, not chosen by the caller:
+
+- `tenant_id` — a hardcoded claim mapper; this deployment is a single tenant.
+- `customer_id` — mapped from the account's own provider identifier, so a
+  self-registered user gets a stable, unforgeable customer identity with no
+  manual provisioning step.
+
+The realm ships one administrative account. Its password is a local fixture and
+must never be reused anywhere else:
 
 | User | Password | Role |
 | --- | --- | --- |
-| `operador.santoandre` | `local-only-admin` | `admin` |
-| `cliente.ana` | `local-only-customer` | `customer` |
-| `cliente.bruno` | `local-only-customer` | `customer` |
+| `santoandreadmin` | `admin1234` | `admin` |
 
 Obtain a token with the direct grant, which is enabled for local development only:
 
 ```powershell
 $body = @{ grant_type='password'; client_id='card-service'
-           username='cliente.ana'; password='local-only-customer' }
+           username='santoandreadmin'; password='admin1234' }
 $token = (Invoke-RestMethod -Method Post `
   "http://localhost:8180/realms/card-platform/protocol/openid-connect/token" `
   -Body $body).access_token
