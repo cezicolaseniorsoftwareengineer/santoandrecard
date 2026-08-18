@@ -8,6 +8,7 @@ import com.cezicola.card.domain.JournalEntry;
 import com.cezicola.card.domain.LedgerAccount;
 import com.cezicola.card.domain.PurchasePlan;
 import com.cezicola.card.application.port.MerchantAuthorizationPort;
+import com.cezicola.card.application.port.SummaryCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -27,19 +28,22 @@ public class FinanceService {
     private final PurchaseBackpressureGuard backpressure;
     private final LedgerService ledger;
     private final OutboxRecorder outbox;
+    private final SummaryCache summaryCache;
     private final Clock clock = Clock.systemUTC();
 
     public FinanceService(EntityManager entityManager, InterestCalculator calculator,
                           MerchantAuthorizationPort merchantAuthorization,
                           PurchaseBackpressureGuard backpressure,
                           LedgerService ledger,
-                          OutboxRecorder outbox) {
+                          OutboxRecorder outbox,
+                          SummaryCache summaryCache) {
         this.entityManager = entityManager;
         this.calculator = calculator;
         this.merchantAuthorization = merchantAuthorization;
         this.backpressure = backpressure;
         this.ledger = ledger;
         this.outbox = outbox;
+        this.summaryCache = summaryCache;
     }
 
     @Transactional
@@ -219,7 +223,23 @@ public class FinanceService {
                 .toList();
     }
 
+    /**
+     * Aggregates every wallet and purchase of a tenant, so the answer is cached
+     * for a few seconds: a dashboard polling it should not make the database
+     * repeat that scan for a figure that barely moved. The cache is a copy the
+     * ledger can always recompute, and it always expires.
+     */
     public AdminSummary adminSummary(UUID tenantId) {
+        var cached = summaryCache.get(tenantId.toString()).map(AdminSummary::parse);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        AdminSummary summary = computeSummary(tenantId);
+        summaryCache.put(tenantId.toString(), summary.serialise());
+        return summary;
+    }
+
+    private AdminSummary computeSummary(UUID tenantId) {
         Object[] values = (Object[]) entityManager.createQuery("""
                 select count(w), coalesce(sum(w.balance), 0),
                   (select coalesce(sum(p.principal), 0) from PurchaseEntity p where p.tenantId = :tenantId),
@@ -277,7 +297,26 @@ public class FinanceService {
     public record CardBalanceView(UUID customerId, BigDecimal walletBalance, BigDecimal cardBalance) {}
     public record InterestPolicyView(BigDecimal monthlyRate, Instant updatedAt) {}
     public record AdminSummary(long customerWallets, BigDecimal totalWalletBalance,
-                               BigDecimal purchasePrincipal, BigDecimal interestRevenue) {}
+                               BigDecimal purchasePrincipal, BigDecimal interestRevenue) {
+
+        /**
+         * A fixed, positional form written by hand.
+         *
+         * <p>Cached bytes outlive the deployment that wrote them. Serialising by
+         * reflection would let a renamed field turn an entry written a minute ago
+         * into a parse failure — or worse, into a value read into the wrong
+         * column. Four amounts in a stated order cannot drift.
+         */
+        String serialise() {
+            return customerWallets + "|" + totalWalletBalance + "|" + purchasePrincipal + "|" + interestRevenue;
+        }
+
+        static AdminSummary parse(String cached) {
+            String[] parts = cached.split("\\|");
+            return new AdminSummary(Long.parseLong(parts[0]), new BigDecimal(parts[1]),
+                    new BigDecimal(parts[2]), new BigDecimal(parts[3]));
+        }
+    }
     public record PurchaseView(UUID id, UUID customerId, String merchantCategory, BigDecimal principal,
                                BigDecimal interest, BigDecimal total, int installments,
                                BigDecimal installmentAmount, BigDecimal remainingWalletBalance, Instant createdAt) {

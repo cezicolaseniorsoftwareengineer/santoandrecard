@@ -33,8 +33,34 @@ isolated local development environment or receive real customer data.
 - Original Banco Santo André visual identity under `assets/brand`.
 
 Kafka carries domain events out of the service through a transactional outbox.
-Redis is still provisioned rather than used: no application code depends on it,
-and the next increment is authorization with available-limit reservation.
+Redis carries a short-window throttle and a read-through cache. Neither holds a
+source of truth: PostgreSQL answers for every cent.
+
+## What Redis is allowed to hold
+
+Nothing worth keeping. Every key expires, and losing the whole dataset costs a
+window of throttling and one database read — never a cent, an identity or an
+authorisation decision.
+
+It does two jobs. It throttles PIN reveals per card, which is not the same
+control as the durable five-attempt budget on the card: that budget is the
+authority and survives restarts, but five attempts is no defence if an attacker
+can spend all five in a burst, across replicas, before any of them writes a row.
+The window is what makes the budget cost an attacker time. And it caches the
+administrative summary for ten seconds — an aggregate over every wallet and
+purchase of a tenant, which a polling dashboard should not make the database
+repeat for a figure that barely moved.
+
+Both degrade to their absent behaviour when Redis is unreachable: the throttle
+allows and the cache misses. That is deliberate. Neither holds a guarantee, so
+taking payments down because a cache is missing would trade a small risk for a
+certain outage. The same behaviour is what a deployment with `card.redis.enabled`
+switched off gets, through default beans rather than through a failure — which is
+also how the fast test profile runs with no server to reach.
+
+The summary is serialised positionally by hand. Cached bytes outlive the
+deployment that wrote them, and reflecting over a class would let a renamed field
+read a value into the wrong column.
 
 ## Events and the outbox
 

@@ -3,7 +3,7 @@ package com.cezicola.card.application;
 /** Why a reveal was refused. The reason is coarse on purpose: a caller learns
  *  that it failed and how many attempts remain, never anything about the PIN. */
 public class CardPinException extends RuntimeException {
-    public enum Reason { NOT_SET, INCORRECT, LOCKED }
+    public enum Reason { NOT_SET, INCORRECT, LOCKED, THROTTLED }
 
     private final Reason reason;
     private final int attemptsRemaining;

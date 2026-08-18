@@ -23,6 +23,7 @@ public class CardPinMapper implements ExceptionMapper<CardPinException> {
         // directly. Looking it up returned null and turned every lock into a 500.
         int status = switch (exception.reason()) {
             case LOCKED -> 423;
+            case THROTTLED -> 429;
             case NOT_SET -> Response.Status.CONFLICT.getStatusCode();
             case INCORRECT -> Response.Status.FORBIDDEN.getStatusCode();
         };
@@ -37,6 +38,7 @@ public class CardPinMapper implements ExceptionMapper<CardPinException> {
     private static String messageFor(CardPinException exception) {
         return switch (exception.reason()) {
             case LOCKED -> "Cartão bloqueado por excesso de tentativas. Defina um novo PIN.";
+            case THROTTLED -> "Muitas tentativas em pouco tempo. Aguarde um instante.";
             case NOT_SET -> "Defina um PIN antes de revelar o número.";
             case INCORRECT -> "PIN incorreto. Tentativas restantes: " + exception.attemptsRemaining() + ".";
         };

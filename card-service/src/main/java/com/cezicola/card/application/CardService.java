@@ -1,6 +1,7 @@
 package com.cezicola.card.application;
 
 import com.cezicola.card.application.port.CardRepository;
+import com.cezicola.card.application.port.RateLimiter;
 import com.cezicola.card.domain.Card;
 import com.cezicola.card.domain.CardNumber;
 import com.cezicola.card.domain.CardPin;
@@ -14,6 +15,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,18 +28,26 @@ public class CardService {
     /** SQL state class for an integrity constraint violation. */
     private static final String INTEGRITY_VIOLATION = "23";
 
+    /** Attempts allowed per card inside {@link #PIN_THROTTLE_WINDOW}. */
+    public static final int PIN_ATTEMPTS_PER_WINDOW = 3;
+    public static final Duration PIN_THROTTLE_WINDOW = Duration.ofMinutes(1);
+
     private final CardRepository repository;
+    private final RateLimiter rateLimiter;
     private final Clock clock;
     private final BigDecimal selfServiceCreditLimit;
 
     @Inject
     public CardService(CardRepository repository,
+                       RateLimiter rateLimiter,
                        @ConfigProperty(name = "card.self-service.credit-limit") BigDecimal selfServiceCreditLimit) {
-        this(repository, Clock.systemUTC(), selfServiceCreditLimit);
+        this(repository, rateLimiter, Clock.systemUTC(), selfServiceCreditLimit);
     }
 
-    CardService(CardRepository repository, Clock clock, BigDecimal selfServiceCreditLimit) {
+    CardService(CardRepository repository, RateLimiter rateLimiter, Clock clock,
+                BigDecimal selfServiceCreditLimit) {
         this.repository = repository;
+        this.rateLimiter = rateLimiter;
         this.clock = clock;
         this.selfServiceCreditLimit = selfServiceCreditLimit;
     }
@@ -115,6 +125,16 @@ public class CardService {
      */
     public CardNumber revealNumber(UUID tenantId, UUID customerId, UUID cardId, String plainPin) {
         Card card = inTransaction(() -> ownedCard(tenantId, customerId, cardId));
+
+        // The durable budget on the card is the authoritative control, but five
+        // attempts is no defence if they can all be spent in a burst across
+        // replicas before any row is written. This window is what makes the
+        // budget cost an attacker time.
+        if (!rateLimiter.tryAcquire("pin:" + card.id(), PIN_ATTEMPTS_PER_WINDOW, PIN_THROTTLE_WINDOW)) {
+            throw new CardPinException(CardPinException.Reason.THROTTLED,
+                    Math.max(MAX_PIN_ATTEMPTS - card.pinAttempts(), 0));
+        }
+
         if (!card.hasPin()) {
             throw new CardPinException(CardPinException.Reason.NOT_SET, MAX_PIN_ATTEMPTS);
         }
