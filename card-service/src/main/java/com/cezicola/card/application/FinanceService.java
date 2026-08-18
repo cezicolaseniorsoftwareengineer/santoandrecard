@@ -26,17 +26,20 @@ public class FinanceService {
     private final MerchantAuthorizationPort merchantAuthorization;
     private final PurchaseBackpressureGuard backpressure;
     private final LedgerService ledger;
+    private final OutboxRecorder outbox;
     private final Clock clock = Clock.systemUTC();
 
     public FinanceService(EntityManager entityManager, InterestCalculator calculator,
                           MerchantAuthorizationPort merchantAuthorization,
                           PurchaseBackpressureGuard backpressure,
-                          LedgerService ledger) {
+                          LedgerService ledger,
+                          OutboxRecorder outbox) {
         this.entityManager = entityManager;
         this.calculator = calculator;
         this.merchantAuthorization = merchantAuthorization;
         this.backpressure = backpressure;
         this.ledger = ledger;
+        this.outbox = outbox;
     }
 
     @Transactional
@@ -63,6 +66,11 @@ public class FinanceService {
                 List.of(
                         JournalEntry.Posting.debit(LedgerAccount.FUNDING, null, amount),
                         JournalEntry.Posting.credit(LedgerAccount.CUSTOMER_WALLET, customerId, amount))));
+
+        // Recorded here, inside the same transaction: the event and the money it
+        // describes commit together or neither does.
+        outbox.record(tenantId, customerId, "wallet.topped-up",
+                json("customerId", customerId, "amount", amount, "balance", wallet.balance));
 
         return new WalletView(customerId, wallet.balance, cardBalance(tenantId, customerId));
     }
@@ -93,7 +101,11 @@ public class FinanceService {
                         JournalEntry.Posting.debit(LedgerAccount.CUSTOMER_WALLET, customerId, amount),
                         JournalEntry.Posting.credit(LedgerAccount.CARD_PREPAID, customerId, amount))));
 
-        return new CardBalanceView(customerId, wallet.balance, cardBalance(tenantId, customerId));
+        BigDecimal onCard = cardBalance(tenantId, customerId);
+        outbox.record(tenantId, customerId, "card.loaded",
+                json("customerId", customerId, "amount", amount, "cardBalance", onCard));
+
+        return new CardBalanceView(customerId, wallet.balance, onCard);
     }
 
     /** Read from the postings, never from a stored figure: the book is the truth. */
@@ -152,6 +164,12 @@ public class FinanceService {
         }
         ledger.record(tenantId, new JournalEntry(
                 JournalEntry.Kind.PURCHASE, "Compra em " + purchase.merchantCategory, purchase.id, postings));
+
+        outbox.record(tenantId, customerId, "purchase.authorised",
+                json("purchaseId", purchase.id, "customerId", customerId,
+                        "merchantCategory", purchase.merchantCategory, "principal", plan.principal(),
+                        "interest", plan.interest(), "total", plan.total(),
+                        "installments", plan.installments()));
 
         return PurchaseView.from(purchase, wallet.balance);
     }
@@ -224,6 +242,30 @@ public class FinanceService {
         if (amount == null || amount.signum() <= 0 || amount.scale() > 2 || amount.precision() > 19) {
             throw new IllegalArgumentException("amount must be positive and fit NUMERIC(19,2)");
         }
+    }
+
+    /**
+     * Serialises the payload by hand rather than reflecting over a class.
+     *
+     * <p>An event is a record of the past: binding it to a class means a future
+     * rename silently rewrites the shape of events already published, and
+     * consumers break at a distance. The field names here are a contract.
+     */
+    private static String json(Object... keysAndValues) {
+        StringBuilder payload = new StringBuilder("{");
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            if (i > 0) {
+                payload.append(',');
+            }
+            payload.append('"').append(keysAndValues[i]).append("\":");
+            Object value = keysAndValues[i + 1];
+            if (value instanceof BigDecimal || value instanceof Integer) {
+                payload.append(value);
+            } else {
+                payload.append('"').append(value).append('"');
+            }
+        }
+        return payload.append('}').toString();
     }
 
     private static BigDecimal money(Object value) {

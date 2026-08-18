@@ -32,10 +32,38 @@ isolated local development environment or receive real customer data.
 - Original responsive Angular interface with customer and admin journeys.
 - Original Banco Santo André visual identity under `assets/brand`.
 
-Redis and Kafka are provisioned for the next vertical increments. They are not
-yet application dependencies: PostgreSQL is the only source of truth in this
-increment. The next services are authorization (available-limit reservation,
-Redis cache and Kafka events) and ledger (double-entry postings and reconciliation).
+Kafka carries domain events out of the service through a transactional outbox.
+Redis is still provisioned rather than used: no application code depends on it,
+and the next increment is authorization with available-limit reservation.
+
+## Events and the outbox
+
+An event must be published exactly when the state change it describes commits.
+Publishing inside the transaction emits events for work that later rolls back;
+publishing after it loses events when the process dies in between. Neither is
+acceptable for money, so the intent to publish is written to `outbox_events` in
+the same transaction as the change, and a scheduled relay turns intent into
+delivery.
+
+Delivery is **at least once**, by decision rather than by limitation. The relay
+publishes and then marks; marking first would lose the event on a failure that
+has not happened yet. Losing an event about money is unacceptable and receiving
+one twice is merely inconvenient, so **consumers must be idempotent** and every
+record carries a stable `event-id` header for exactly that purpose.
+
+This is observable rather than theoretical. On the first run against a broker
+that had not yet created the topic, the send timed out after the broker had in
+fact written the record; the relay retried and the topic ended up with the same
+`event-id` twice. A consumer that does not dedupe would have counted that top-up
+twice.
+
+Records are keyed by customer, which is the only scope in which Kafka promises
+ordering. The producer runs with `acks=all`, `enable.idempotence=true` and one
+in-flight request per connection, so a producer-side retry cannot duplicate or
+reorder within a partition.
+
+After ten failed attempts an event stays unpublished and visible instead of
+being discarded: an event about money is an operator's problem, not garbage.
 
 Idempotency holds under concurrency, not only for sequential retries. Checking for
 an existing key and then inserting cannot be atomic on its own, so the unique
