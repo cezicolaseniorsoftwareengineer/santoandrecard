@@ -1,0 +1,44 @@
+# Three hosts under *.localhost, which browsers resolve to the loopback address
+# without touching the hosts file. Splitting by host rather than by path keeps the
+# identity provider on its own origin: Keycloak issues absolute URLs from the
+# request host, and serving it under a path prefix breaks its redirects.
+#
+# No TLS is configured. These names are loopback-only and the realm runs with
+# sslRequired: none; exposing any of this beyond the machine requires TLS first.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: card-platform
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.card-platform.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-app
+                port:
+                  number: 80
+    - host: api.card-platform.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: card-service
+                port:
+                  number: 80
+    - host: keycloak.card-platform.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080

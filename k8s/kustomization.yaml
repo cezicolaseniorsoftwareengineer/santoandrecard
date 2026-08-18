@@ -6,8 +6,12 @@ namespace: card-platform
 resources:
   - namespace.yaml
   - postgres.yaml
+  - redis.yaml
+  - kafka.yaml
   - keycloak.yaml
   - card-service.yaml
+  - web-app.yaml
+  - ingress.yaml
 
 # The Secret is intentionally not listed: card-service-secret.example.yaml is a
 # template. Create the real Secret out-of-band (external secret store, sealed

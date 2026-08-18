@@ -52,6 +52,17 @@ spec:
               value: "true"
             - name: KC_HTTP_ENABLED
               value: "true"
+            # The browser reaches Keycloak through the Ingress, so every URL it
+            # issues — authorization redirects and the `iss` claim — must carry
+            # the public host. Left unset it would advertise the pod address,
+            # which no browser can reach.
+            - name: KC_HOSTNAME
+              value: http://keycloak.card-platform.localhost
+            # The Service is still addressed as http://keycloak:8080 from inside
+            # the cluster; without this the strict hostname check rejects those
+            # requests, including card-service's discovery call.
+            - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              value: "true"
           ports:
             - name: http
               containerPort: 8080

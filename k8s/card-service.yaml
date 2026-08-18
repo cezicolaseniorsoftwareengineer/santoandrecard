@@ -7,6 +7,13 @@ data:
   DB_USERNAME: card_app
   OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/card-platform
   OIDC_CLIENT_ID: card-service
+  # The browser origin the interface is served from, which is an Ingress host and
+  # not the cluster-local Service name. The CORS allow-list is matched against
+  # what the tab sends, so a cluster name here would reject every request.
+  WEB_APP_ORIGINS: http://app.card-platform.localhost
+  # Discovery runs over the Service name above; the token the browser presents was
+  # issued through the Ingress host, so `iss` carries that one instead.
+  OIDC_TOKEN_ISSUER: http://keycloak.card-platform.localhost/realms/card-platform
 ---
 apiVersion: apps/v1
 kind: Deployment
