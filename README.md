@@ -31,10 +31,51 @@ isolated local development environment or receive real customer data.
 - Merchant authorization circuit breaker with timeout, fail-closed fallback and HTTP `503`.
 - Original responsive Angular interface with customer and admin journeys.
 - Original Banco Santo André visual identity under `assets/brand`.
+- Customer self-registration at the identity provider, with the realm's default
+  role granting access to the cardholder dashboard on first sign-in.
+- Self-service card issuance, available at any hour, with the issuing limit taken
+  from issuer policy and never from the request.
+- Santo André Card Platinum as a product on the card itself, rendered at the
+  ID-1 ratio of a physical card.
+- Full card number revealed only against a four-digit PIN derived with PBKDF2 and
+  a per-card salt, behind a persisted attempt budget and a distributed throttle.
+- Prepaid card balance funded by a ledger-backed transfer from the wallet.
+- Domain events published to Kafka through a transactional outbox, with
+  at-least-once delivery and a stable event id for consumer deduplication.
 
 Kafka carries domain events out of the service through a transactional outbox.
 Redis carries a short-window throttle and a read-through cache. Neither holds a
 source of truth: PostgreSQL answers for every cent.
+
+## Technology
+
+Every dependency below is used by code in this repository. Nothing is declared
+for appearance.
+
+| Technology | Version | What it settles |
+| --- | --- | --- |
+| Java | 17 LTS | Immutable records for aggregates and `BigDecimal` for every amount; no `double` or `float` exists in the codebase, because binary floating point does not represent centavos. |
+| Quarkus | 3.33.3 | Fast-starting, low-memory runtime suited to containers, with the domain kept independent of it. |
+| PostgreSQL | 17 | The single source of truth. A unique index enforces idempotency under concurrency, `CHECK` constraints restrict ledger accounts and entry kinds, and a pessimistic row lock serialises debits on one wallet. |
+| Double-entry ledger | own domain | Debit equals credit is enforced in the entry's constructor, so an unbalanced transaction cannot exist. Reconciliation compares the projection against the book. |
+| Hibernate ORM + Panache | via Quarkus | Mapping validated against the real schema at boot; the application generates no DDL and refuses to start on divergence. |
+| Flyway | 8 migrations | Versioned, auditable schema evolution applied at start. |
+| Apache Kafka | 4.1.1 (KRaft) | Domain events leave the service through a transactional outbox, at least once, keyed by customer — the only scope in which Kafka promises ordering. |
+| Redis | 8 | Distributed PIN throttle and a read-through cache for the administrative summary. Holds no source of truth and degrades open when unreachable. |
+| Quarkus Scheduler | via Quarkus | Drains the outbox outside the request path, so a slow broker cannot fail a payment already committed to the ledger. |
+| Keycloak + OIDC | 26.4 | Bearer-token authentication, deny by default on `/api`, identity from verified claims, and self-service registration the application never sees a password for. |
+| PBKDF2 (JDK) | 210k iterations | Card PIN derived with a per-card salt and compared in constant time. |
+| SmallRye Fault Tolerance | via Quarkus | Timeout and circuit breaker on merchant authorization with a fail-closed fallback; bounded admission rejects with `429` instead of queueing a financial request inside an open transaction. |
+| Hibernate Validator | Jakarta Validation | Input validated at the edge, with the same constraints also declared on the entity and in the migration. |
+| Angular | 21 (standalone, signals) | Reactive state without an external state library; every figure shown comes from an API response, so the interface cannot disagree with the ledger. |
+| TypeScript | 5.9 | Typed API contracts and a pt-BR currency field that reads digits as centavos while the bound model stays numeric. |
+| Docker + Compose | — | Reproducible local stack with health checks and a pinned project name. |
+| Kubernetes | manifests + Ingress | Deployments, StatefulSets, Ingress and a PodDisruptionBudget, with `runAsNonRoot`, `readOnlyRootFilesystem`, `drop: ALL`, seccomp, resource limits and explicit probe timeouts. |
+| nginx (unprivileged) | front-end image | Serves the built interface as a non-root user, with endpoints injected at runtime so one image serves every environment. |
+| Micrometer + Prometheus | via Quarkus | Runtime and fault-tolerance metrics, alongside health endpoints and a published OpenAPI contract. |
+| JUnit 5 + RestAssured | 3.5.4 | Backend unit and API tests, including overlapping requests and a spent PIN budget. |
+| Vitest | 4.1 | Front-end tests, including a boot that must finish while the API never answers. |
+| GitHub Actions | 3 jobs | Boots the packaged application against real PostgreSQL on every push, because H2 in the fast profile once accepted a schema PostgreSQL rejected. |
 
 ## What Redis is allowed to hold
 
@@ -220,3 +261,11 @@ described in `k8s/kustomization.yaml`.
 Container image tags must be immutable. `imagePullPolicy: IfNotPresent` makes a
 node keep a cached image when a tag is reused, so a redeploy would silently serve
 the previous build.
+
+## Credits
+
+Developed by **Cezi Cola, Software Engineer** — **Bio Code Technology**.
+
+Banco Santo André is a fictitious institution created for this project. The work
+is original, derives from no bank's source code, carries no third-party branding
+and claims no compatibility with any proprietary system.
