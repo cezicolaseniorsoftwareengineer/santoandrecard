@@ -209,6 +209,33 @@ mvn -pl card-service quarkus:dev
 Swagger UI is available at `http://localhost:8080/q/swagger-ui` in development.
 Create a card with `POST /api/v1/cards` and a unique `Idempotency-Key` header.
 
+## Pointing at a managed PostgreSQL
+
+The datasource is entirely environment driven, so a hosted database needs no
+code change — only three variables. Flyway runs the migrations on first start,
+so an empty database becomes the full schema by itself.
+
+```powershell
+$env:DB_URL      = "jdbc:postgresql://HOST/DATABASE?sslmode=require"
+$env:DB_USERNAME = "USER"
+$env:DB_PASSWORD = "PASSWORD"
+java -jar card-service/target/quarkus-app/quarkus-run.jar
+```
+
+`sslmode=require` is not optional. The connection leaves the machine, and
+without it the driver will happily send the password in the clear; every managed
+provider offers TLS and most enforce it.
+
+Two things change when the database stops being local. Connections become
+scarce — hosted plans cap them per project, and the pool is sized here rather
+than inherited so two replicas cannot exhaust a small plan between them. And
+idle connections are dropped from the far side, which is why connections are
+validated in the background: the alternative is the first query after a quiet
+period failing on a connection the pool still believes is open.
+
+The credentials in `compose.yaml` and in this document are local fixtures. They
+must never be used on a database that is reachable from the internet.
+
 ## Authentication
 
 Every `/api` path requires a bearer token; only `/q/health`, `/q/metrics` and
