@@ -138,6 +138,11 @@ jobs:
 
   # Dependencies are the part of the attack surface nobody writes. npm audit
   # already covered the front end; the backend had nothing looking at it.
+  #
+  # OSV rather than the NVD feed, because the NVD one needs an API key to be
+  # usable at all: without it the scan is rate limited into failure, and a job
+  # that cannot run is a job whose result means nothing. OSV needs no key, so
+  # this either finds something or genuinely found nothing.
   dependencies:
     name: dependency vulnerabilities
     runs-on: ubuntu-latest
@@ -150,31 +155,26 @@ jobs:
           java-version: '17'
           cache: maven
 
-      # The NVD feed is large and rate limited, so the local database is cached
-      # between runs; without it the first analysis dominates the build.
-      - name: Cache the vulnerability database
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data
-          key: dependency-check-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
-          restore-keys: dependency-check-${{ runner.os }}-
-
-      # CVSS 7 and above fails the build, and so does a scan that cannot run:
-      # this step is only worth having if its green means the dependencies were
-      # actually examined. NVD_API_KEY must be set as a repository secret —
-      # without it the feed is rate limited to the point of uselessness.
-      - name: Scan backend dependencies
+      # The resolved tree, not the declared one: a vulnerability reaches this
+      # service through a transitive dependency just as easily as a direct one.
+      - name: Resolve the full dependency tree
         run: >
-          mvn -B --no-transfer-progress org.owasp:dependency-check-maven:check
-          -DfailBuildOnCVSS=7
-          -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+          mvn -B --no-transfer-progress dependency:tree
+          -DoutputFile=dependency-tree.txt -DoutputType=text
 
-      - name: Publish the report
+      - name: Scan dependencies
+        uses: google/osv-scanner-action/osv-scanner-action@v2.2.4
+        with:
+          scan-args: |-
+            --lockfile=maven:card-service/pom.xml
+            --lockfile=web-app/package-lock.json
+
+      - name: Publish the resolved tree
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dependency-check-report
-          path: '**/target/dependency-check-report.html'
+          name: dependency-tree
+          path: '**/dependency-tree.txt'
           if-no-files-found: ignore
 
   # Static analysis of the code this repository actually writes, which dependency
