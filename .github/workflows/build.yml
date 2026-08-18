@@ -159,14 +159,15 @@ jobs:
           key: dependency-check-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: dependency-check-${{ runner.os }}-
 
-      # CVSS 7 and above fails the build. Below that the finding is reported and
-      # left for triage rather than blocking delivery on a score alone.
+      # CVSS 7 and above fails the build, and so does a scan that cannot run:
+      # this step is only worth having if its green means the dependencies were
+      # actually examined. NVD_API_KEY must be set as a repository secret —
+      # without it the feed is rate limited to the point of uselessness.
       - name: Scan backend dependencies
         run: >
           mvn -B --no-transfer-progress org.owasp:dependency-check-maven:check
           -DfailBuildOnCVSS=7
           -DnvdApiKey=${{ secrets.NVD_API_KEY }}
-        continue-on-error: true
 
       - name: Publish the report
         if: always()
@@ -201,7 +202,7 @@ jobs:
       - name: Initialise CodeQL
         uses: github/codeql-action/init@v3
         with:
-          language: ${{ matrix.language }}
+          languages: ${{ matrix.language }}
           queries: security-and-quality
 
       # Quarkus generates bytecode at build time, so the Java analysis needs a
