@@ -12,6 +12,7 @@ public record Card(
         BigDecimal creditLimit,
         String currency,
         CardStatus status,
+        CardProduct product,
         String lastFourDigits,
         Instant createdAt) {
 
@@ -22,6 +23,7 @@ public record Card(
         Objects.requireNonNull(creditLimit, "creditLimit must not be null");
         Objects.requireNonNull(currency, "currency must not be null");
         Objects.requireNonNull(status, "status must not be null");
+        Objects.requireNonNull(product, "product must not be null");
         Objects.requireNonNull(lastFourDigits, "lastFourDigits must not be null");
         Objects.requireNonNull(createdAt, "createdAt must not be null");
         if (creditLimit.signum() <= 0 || creditLimit.scale() > 2 || creditLimit.precision() > 19) {

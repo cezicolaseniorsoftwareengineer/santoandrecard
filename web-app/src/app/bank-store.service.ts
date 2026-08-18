@@ -55,6 +55,21 @@ export class BankStore {
     }
   }
 
+  /**
+   * Issues the cardholder's card. The API answers a repeat with the card already
+   * held, so the list is replaced rather than appended to: retrying must never
+   * make a second card appear in the interface.
+   */
+  async issueCard(): Promise<string | null> {
+    try {
+      const card = await firstValueFrom(this.api.issueCard());
+      this.cards.set([card]);
+      return null;
+    } catch (error) {
+      return describe(error);
+    }
+  }
+
   async addBalance(amount: number): Promise<string | null> {
     if (!Number.isFinite(amount) || amount <= 0) return 'Informe um valor maior que zero.';
     try {

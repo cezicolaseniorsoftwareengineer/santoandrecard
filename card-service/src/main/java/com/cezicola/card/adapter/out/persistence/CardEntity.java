@@ -1,5 +1,6 @@
 package com.cezicola.card.adapter.out.persistence;
 
+import com.cezicola.card.domain.CardProduct;
 import com.cezicola.card.domain.CardStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -39,6 +40,10 @@ public class CardEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     public CardStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    public CardProduct product;
 
     @Column(name = "last_four_digits", nullable = false, length = 4)
     public String lastFourDigits;

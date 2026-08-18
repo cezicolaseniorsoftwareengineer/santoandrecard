@@ -47,6 +47,7 @@ public class JpaCardRepository implements CardRepository {
         entity.creditLimit = card.creditLimit();
         entity.currency = card.currency();
         entity.status = card.status();
+        entity.product = card.product();
         entity.lastFourDigits = card.lastFourDigits();
         entity.idempotencyKey = idempotencyKey;
         entity.createdAt = card.createdAt();
@@ -55,6 +56,6 @@ public class JpaCardRepository implements CardRepository {
 
     private static Card toDomain(CardEntity entity) {
         return new Card(entity.id, entity.tenantId, entity.customerId, entity.creditLimit, entity.currency,
-                entity.status, entity.lastFourDigits, entity.createdAt);
+                entity.status, entity.product, entity.lastFourDigits, entity.createdAt);
     }
 }

@@ -80,7 +80,12 @@
         </section>
         <section class="dashboard-grid">
           @if (store.card(); as card) {
-            <article class="credit-card"><div class="card-top"><span>Santo André</span><span>crédito</span></div><div class="chip"></div><p>•••• •••• •••• {{ card.lastFourDigits }}</p><div class="card-bottom"><span>{{ session()!.name | uppercase }}</span><strong>{{ card.status }}</strong></div></article>
+            <article class="credit-card credit-card--platinum">
+              <div class="card-top"><span>Santo André</span><span>{{ card.productName }}</span></div>
+              <div class="chip"></div>
+              <p>•••• •••• •••• {{ card.lastFourDigits }}</p>
+              <div class="card-bottom"><span>{{ session()!.name | uppercase }}</span><strong>{{ card.status }}</strong></div>
+            </article>
             <article class="limit-card">
               <p>Limite disponível</p><strong>{{ store.availableLimit() | currency:'BRL' }}</strong>
               <div class="progress"><i [style.width.%]="card.creditLimit ? (store.committed() / card.creditLimit * 100) : 0"></i></div>
@@ -88,7 +93,12 @@
               <button class="primary" (click)="navigate('shopping')">Fazer uma compra</button>
             </article>
           } @else {
-            <article class="limit-card"><p>Nenhum cartão emitido</p><strong>—</strong><small>A emissão de cartão é feita pela administração do banco.</small></article>
+            <article class="issue-card">
+              <p class="eyebrow">Disponível 24 horas</p>
+              <h3>Peça seu Santo André Card Platinum</h3>
+              <p>Emissão imediata, a qualquer hora, direto pela sua conta. O limite é definido pela política do banco.</p>
+              <button class="primary full" type="button" (click)="issueCard()" [disabled]="busy()">Gerar meu cartão</button>
+            </article>
           }
         </section>
         <section class="panel">

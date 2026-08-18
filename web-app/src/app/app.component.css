@@ -242,7 +242,7 @@ small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--m
 
 /* -------------------------------------------------------------------- panels */
 
-.panel, .metric, .limit-card, .available-pill {
+.panel, .metric, .limit-card, .issue-card, .available-pill {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -384,6 +384,21 @@ small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--m
   color: rgba(255, 255, 255, .78);
 }
 .card-bottom strong { color: rgba(255, 255, 255, .6); font-weight: 500; }
+
+/* The Platinum product reads as black. Flat, like the rest of the interface:
+   the tier is carried by the colour alone, not by a gradient or a sheen. */
+.credit-card--platinum { background: #0b0b0c; }
+
+/* Issuance stands where the card will appear, so the empty state is an offer
+   rather than a notice that something is missing. */
+.issue-card {
+  padding: var(--s5);
+  min-height: 196px;
+  display: flex; flex-direction: column; justify-content: center; gap: var(--s3);
+}
+.issue-card h3 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.015em; }
+.issue-card p { margin: 0; font-size: 13px; color: var(--muted); }
+.issue-card button { margin-top: var(--s2); }
 
 .limit-card {
   padding: var(--s5);

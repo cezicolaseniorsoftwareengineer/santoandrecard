@@ -21,6 +21,11 @@ export class CardApi {
     return this.http.get<readonly PurchaseResponse[]>(`${API_BASE_URL}/purchases`, { params: { limit } });
   }
 
+  /** Issues the calling customer's own card. The limit is issuer policy, so the request carries no body. */
+  issueCard(): Observable<CardResponse> {
+    return this.http.post<CardResponse>(`${API_BASE_URL}/cards/self-service`, null);
+  }
+
   topUp(amount: number): Observable<WalletResponse> {
     return this.http.post<WalletResponse>(`${API_BASE_URL}/wallet/top-ups`, { amount });
   }

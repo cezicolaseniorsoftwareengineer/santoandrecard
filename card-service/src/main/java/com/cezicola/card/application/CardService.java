@@ -2,11 +2,14 @@ package com.cezicola.card.application;
 
 import com.cezicola.card.application.port.CardRepository;
 import com.cezicola.card.domain.Card;
+import com.cezicola.card.domain.CardProduct;
 import com.cezicola.card.domain.CardStatus;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.time.Clock;
@@ -23,15 +26,40 @@ public class CardService {
 
     private final CardRepository repository;
     private final Clock clock;
+    private final BigDecimal selfServiceCreditLimit;
 
     @Inject
-    public CardService(CardRepository repository) {
-        this(repository, Clock.systemUTC());
+    public CardService(CardRepository repository,
+                       @ConfigProperty(name = "card.self-service.credit-limit") BigDecimal selfServiceCreditLimit) {
+        this(repository, Clock.systemUTC(), selfServiceCreditLimit);
     }
 
-    CardService(CardRepository repository, Clock clock) {
+    CardService(CardRepository repository, Clock clock, BigDecimal selfServiceCreditLimit) {
         this.repository = repository;
         this.clock = clock;
+        this.selfServiceCreditLimit = selfServiceCreditLimit;
+    }
+
+    /**
+     * Issues the calling customer's own card, at any hour, with no operator in
+     * the loop.
+     *
+     * <p>Two properties make this safe to expose to the cardholder. The limit
+     * comes from the issuer's policy and is never read from the request, so a
+     * customer cannot choose what they are worth. And the idempotency key is
+     * derived from the customer rather than supplied, which turns the existing
+     * unique index on (tenant, key) into the guarantee that one customer ends up
+     * with one card: a second request, a double-clicked button and two
+     * simultaneous requests all return the same card instead of minting another
+     * limit.
+     */
+    public Card issueForCustomer(UUID tenantId, UUID customerId) {
+        return create(new CreateCardCommand(
+                tenantId, customerId, selfServiceCreditLimit, CardProduct.PLATINUM, selfServiceKeyFor(customerId)));
+    }
+
+    static String selfServiceKeyFor(UUID customerId) {
+        return "self-service:" + customerId;
     }
 
     /**
@@ -81,6 +109,7 @@ public class CardService {
                 command.creditLimit(),
                 "BRL",
                 CardStatus.ACTIVE,
+                command.product(),
                 "%04d".formatted(RANDOM.nextInt(10_000)),
                 clock.instant()), command.idempotencyKey());
     }
@@ -92,6 +121,7 @@ public class CardService {
      */
     private static Card sameRequestOrConflict(Card existing, CreateCardCommand command) {
         if (!existing.customerId().equals(command.customerId())
+                || existing.product() != command.product()
                 || existing.creditLimit().compareTo(command.creditLimit()) != 0) {
             throw new IdempotencyConflictException();
         }

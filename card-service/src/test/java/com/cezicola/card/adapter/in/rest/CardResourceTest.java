@@ -112,7 +112,8 @@ class CardResourceTest {
             @Claim(key = "customer_id", value = "dddddddd-0000-0000-0000-00000000000f")})
     void hidesCardsBelongingToAnotherCustomer() {
         var card = cardService.create(new CreateCardCommand(UUID.fromString(TENANT_ID),
-                UUID.fromString(CARD_HOLDER), new java.math.BigDecimal("750.00"), "idor-" + UUID.randomUUID()));
+                UUID.fromString(CARD_HOLDER), new java.math.BigDecimal("750.00"),
+                com.cezicola.card.domain.CardProduct.PLATINUM, "idor-" + UUID.randomUUID()));
 
         given().when().get("/api/v1/cards/{id}", card.id().toString())
                 .then().statusCode(404).body("code", equalTo("CARD_NOT_FOUND"));

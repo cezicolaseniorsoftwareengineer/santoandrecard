@@ -21,6 +21,8 @@ export interface CardResponse {
   readonly creditLimit: number;
   readonly currency: string;
   readonly status: 'ACTIVE' | 'BLOCKED' | 'CANCELLED';
+  readonly product: 'PLATINUM';
+  readonly productName: string;
   readonly lastFourDigits: string;
   readonly createdAt: string;
 }

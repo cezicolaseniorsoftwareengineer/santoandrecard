@@ -70,6 +70,10 @@ export class AppComponent implements OnInit {
     this.quote.set(null);
   }
 
+  async issueCard(): Promise<void> {
+    await this.run(() => this.store.issueCard(), 'Cartão emitido e já disponível.');
+  }
+
   async addBalance(): Promise<void> {
     await this.run(() => this.store.addBalance(this.depositAmount), 'Saldo adicionado à carteira.');
   }
