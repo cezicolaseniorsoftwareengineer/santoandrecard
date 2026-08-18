@@ -1,5 +1,16 @@
 # Banco Santo André Card Platform
 
+<img width="1252" height="546" alt="image" src="https://github.com/user-attachments/assets/05425008-7fbe-4456-b196-28dcec41e7cd" /> <img width="1275" height="603" alt="image" src="https://github.com/user-attachments/assets/3c67e3e4-c19f-42f3-b5d4-a74862568719" />
+
+<img width="1275" height="612" alt="image" src="https://github.com/user-attachments/assets/c0eeeb88-dce3-4ee6-8660-ec96404c9168" />
+
+ADMIN
+<img width="1276" height="598" alt="image" src="https://github.com/user-attachments/assets/03150f39-c943-40f9-aacf-fba6b9df6503" />
+
+USER
+<img width="1270" height="598" alt="image" src="https://github.com/user-attachments/assets/df140951-0cd8-470b-9212-d15ccfa0967d" />
+
+
 Educational credit-card platform MVP built with Java 17 and Quarkus. Banco Santo
 André is a fictitious institution created for this project. The work is original:
 it derives from no bank's source code, carries no third-party branding and claims
