@@ -31,6 +31,34 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!--
+                Transitive dependencies pinned above the versions the platform
+                brings, because the dependency scan found known vulnerabilities
+                in them. None is declared by this project: they arrive through
+                Kafka, Vert.x and the metrics stack, which is exactly why the
+                scan reads the resolved tree instead of the declared one.
+
+                Each is a patch or minor bump within the same API, and the whole
+                suite is the evidence that nothing moved underneath.
+            -->
+            <dependency>
+                <!-- GHSA-8c42-7qj2-3j46 -->
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-http</artifactId>
+                <version>4.1.137.Final</version>
+            </dependency>
+            <dependency>
+                <!-- GHSA-xx22-p4ch-683r, reached through the Kafka client -->
+                <groupId>at.yawk.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>1.11.1</version>
+            </dependency>
+            <dependency>
+                <!-- GHSA-rcgg-9c38-7xpx -->
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-api</artifactId>
+                <version>1.62.0</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
