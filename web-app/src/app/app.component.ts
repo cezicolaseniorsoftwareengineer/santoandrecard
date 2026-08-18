@@ -2,6 +2,7 @@ import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from './auth.service';
+import { BrlInputDirective } from './brl-input.directive';
 import { BankStore } from './bank-store.service';
 import { MerchantCategory, PurchaseQuote } from './bank.models';
 
@@ -10,7 +11,7 @@ type CustomerView = 'overview' | 'shopping' | 'statement';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe],
+  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, BrlInputDirective],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -40,16 +41,38 @@ export class AppComponent implements OnInit {
   /** Long enough for the mark to register, short enough not to be a delay. */
   private static readonly SPLASH_MS = 1100;
 
-  async ngOnInit(): Promise<void> {
-    const shown = new Promise(resolve => window.setTimeout(resolve, AppComponent.SPLASH_MS));
-    const restored = await this.auth.restore();
-    if (restored) await this.reload();
+  /**
+   * How long the splash will wait for the network before giving up on it.
+   *
+   * <p>A server that refuses a connection fails fast, but one that accepts it and
+   * never answers does not: the request simply stays pending. Awaiting it with no
+   * deadline left the user on the splash forever, which is how a hung API turned
+   * into an application that never started.
+   */
+  private static readonly BOOT_DEADLINE_MS = 4000;
 
-    // Waiting for both means the splash never flashes on a fast start and never
-    // hides an interface that is not ready yet on a slow one.
+  async ngOnInit(): Promise<void> {
+    const shown = this.after(AppComponent.SPLASH_MS);
+
+    // Whichever comes first: the session and its data, or the deadline. Losing
+    // the race still yields a usable interface — the login screen if the session
+    // never arrived, the dashboard filling in behind its loading state if it did.
+    await Promise.race([this.startSession(), this.after(AppComponent.BOOT_DEADLINE_MS)]);
+
+    // Holding for the minimum means the splash never flashes on a fast start.
     await shown;
     this.starting.set(false);
     window.setTimeout(() => this.splash.set(false), 420);
+  }
+
+  private async startSession(): Promise<void> {
+    if (await this.auth.restore()) {
+      await this.reload();
+    }
+  }
+
+  private after(milliseconds: number): Promise<void> {
+    return new Promise(resolve => window.setTimeout(resolve, milliseconds));
   }
 
   login(): void {

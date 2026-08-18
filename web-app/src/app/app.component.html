@@ -75,7 +75,7 @@
           </div>
           <form class="quick-deposit" (ngSubmit)="addBalance()">
             <label for="deposit">Adicionar saldo</label>
-            <div><span>R$</span><input id="deposit" name="deposit" type="number" min="0.01" step="0.01" [(ngModel)]="depositAmount"><button type="submit" [disabled]="busy()">Adicionar</button></div>
+            <div><span>R$</span><input id="deposit" name="deposit" type="text" inputmode="numeric" appBrl [(ngModel)]="depositAmount"><button type="submit" [disabled]="busy()">Adicionar</button></div>
           </form>
         </section>
         <section class="dashboard-grid">
@@ -116,7 +116,7 @@
             <label for="category">Categoria do estabelecimento</label>
             <select id="category" name="category" [(ngModel)]="category">@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select>
             <label for="amount">Valor da compra</label>
-            <div class="money-input"><span>R$</span><input id="amount" name="amount" type="number" min="0.01" step="0.01" [(ngModel)]="purchaseAmount" required></div>
+            <div class="money-input"><span>R$</span><input id="amount" name="amount" type="text" inputmode="numeric" appBrl [(ngModel)]="purchaseAmount" required></div>
             <label for="installments">Parcelas</label>
             <select id="installments" name="installments" [(ngModel)]="installments">@for (n of [1,2,3,4,5,6,9,12,18,24]; track n) { <option [value]="n">{{ n }}x</option> }</select>
             <small>A taxa vigente é definida pela administração do banco.</small>

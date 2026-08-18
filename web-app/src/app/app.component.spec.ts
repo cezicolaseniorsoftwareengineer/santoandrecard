@@ -51,7 +51,8 @@ async function render(session: Session | null): Promise<ComponentFixture<AppComp
       answer(http, `${API_BASE_URL}/wallet`, { customerId: 'c1', balance: 1166.66 }),
       answer(http, `${API_BASE_URL}/cards`, [{
         id: 'card-1', customerId: 'c1', creditLimit: 5000, currency: 'BRL',
-        status: 'ACTIVE', lastFourDigits: '9808', createdAt: '2026-08-17T00:00:00Z'
+        status: 'ACTIVE', product: 'PLATINUM', productName: 'Santo André Card Platinum',
+        lastFourDigits: '9808', createdAt: '2026-08-17T00:00:00Z'
       }]),
       answer(http, `${API_BASE_URL}/purchases?limit=50`, [])
     ]);
@@ -83,6 +84,28 @@ describe('AppComponent', () => {
     expect(text).toContain('Ana Cardoso');
     expect(text).toContain('9808');
   });
+
+  it('finishes the boot when the API accepts the request and never answers', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: new StubAuthService({ name: 'Ana Cardoso', role: 'CUSTOMER' }) }
+      ]
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AppComponent);
+    // Nothing is flushed: every request stays pending, which is what a hung
+    // server looks like to the browser. The boot has to complete anyway.
+    TestBed.inject(HttpTestingController);
+
+    await fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.starting()).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('Saldo disponível');
+  }, 15000);
 
   it('shows consolidated figures and no wallet actions for an administrator', async () => {
     const fixture = await render({ name: 'Operador', role: 'ADMIN' });

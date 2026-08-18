@@ -107,6 +107,11 @@ input, select {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   background: #fff;
+  /* The reset gives form controls `color: inherit`, which on the navy hero made
+     the deposit field white text on its own white background — legible only
+     while selected. A control that declares its background declares its
+     foreground. */
+  color: var(--ink);
   transition: border-color .12s ease;
 }
 input:hover, select:hover { border-color: var(--muted); }
@@ -296,7 +301,7 @@ small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--m
   padding: 4px 4px 4px var(--s3);
 }
 .quick-deposit span { color: var(--muted); font-size: 13px; }
-.quick-deposit input { border: 0; padding: 6px 0; }
+.quick-deposit input { border: 0; padding: 6px 0; font-variant-numeric: tabular-nums; font-weight: 550; }
 .quick-deposit input:focus { border: 0; }
 .quick-deposit button {
   border: 0; border-radius: 6px;
@@ -462,7 +467,7 @@ small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--m
 }
 .money-input:focus-within { border-color: var(--navy-700); }
 .money-input span { color: var(--muted); font-size: 13px; }
-.money-input input { border: 0; padding-left: 0; }
+.money-input input { border: 0; padding-left: 0; font-variant-numeric: tabular-nums; font-weight: 550; }
 .money-input input:focus { border: 0; }
 .form-panel .primary { margin-top: var(--s5); }
 
