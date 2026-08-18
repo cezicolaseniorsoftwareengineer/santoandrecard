@@ -220,17 +220,31 @@ mvn -pl card-service quarkus:dev
 Swagger UI is available at `http://localhost:8080/q/swagger-ui` in development.
 Create a card with `POST /api/v1/cards` and a unique `Idempotency-Key` header.
 
+## Which database is the real one
+
+Three PostgreSQL instances exist, and only one of them is the platform. The managed
+Neon database is canonical: money, identity and the demonstration's history live
+there, and it is what reconciliation and support answer against. The Compose volume
+and the Kubernetes PVC are disposable by decision — the first is the local feedback
+loop, the second proves the manifests deploy — and deleting either costs nothing.
+Nothing is replicated or reconciled between the three; they are unrelated histories,
+not copies. ADR-004 records why, and what that makes the credential worth.
+
 ## Pointing at a managed PostgreSQL
 
 The datasource is entirely environment driven, so a hosted database needs no
 code change — only three variables. Flyway runs the migrations on first start,
 so an empty database becomes the full schema by itself.
 
+Copy `.env.example` to `.env`, fill it in, and run anything through it. Git ignores
+`.env`, the values are set for one child process, and only the variable names are
+printed — a credential typed at a prompt lives on in shell history, which is the
+same mistake in a slower form.
+
 ```powershell
-$env:DB_URL      = "jdbc:postgresql://HOST/DATABASE?sslmode=require"
-$env:DB_USERNAME = "USER"
-$env:DB_PASSWORD = "PASSWORD"
-java -jar card-service/target/quarkus-app/quarkus-run.jar
+Copy-Item .env.example .env   # then fill in HOST, DATABASE, USER, PASSWORD
+powershell -File ./scripts/with-env.ps1 java -jar card-service/target/quarkus-app/quarkus-run.jar
+powershell -File ./scripts/with-env.ps1 mvn -pl card-service quarkus:dev
 ```
 
 `sslmode=require` is not optional. The connection leaves the machine, and
@@ -244,8 +258,13 @@ idle connections are dropped from the far side, which is why connections are
 validated in the background: the alternative is the first query after a quiet
 period failing on a connection the pool still believes is open.
 
-The credentials in `compose.yaml` and in this document are local fixtures. They
-must never be used on a database that is reachable from the internet.
+The credentials in `compose.yaml` and in this document are local fixtures, and
+they are published in the clear deliberately: they open disposable instances, which
+is what makes them harmless. They must never be used on a database reachable from
+the internet. The canonical credential goes in the environment of the process that
+needs it and nowhere else — not a manifest, not an issue, not a chat. One that has
+been anywhere else is compromised on that fact alone and is rotated, not assessed;
+see `engineering/credential-rotation-log.md`.
 
 ## What survives a restart
 
@@ -282,12 +301,21 @@ has to exist first:
 CREATE SCHEMA IF NOT EXISTS keycloak;
 ```
 
+The `KC_DB_*` variables live in the same `.env`:
+
 ```powershell
-$env:KC_DB_URL      = "jdbc:postgresql://HOST/DATABASE?sslmode=require&currentSchema=keycloak"
-$env:KC_DB_USERNAME = "USER"
-$env:KC_DB_PASSWORD = "PASSWORD"
-docker compose up -d keycloak
+powershell -File ./scripts/with-env.ps1 docker compose up -d keycloak
 ```
+
+That accounts survive the container is a claim about recreation, not restart, so it
+is checked rather than assumed:
+
+```powershell
+powershell -File ./scripts/verify-keycloak-persistence.ps1
+```
+
+It creates an account, destroys and rebuilds the container, and requires that same
+account to authenticate afterwards.
 
 Identity and money share a server for convenience here, never a schema.
 
