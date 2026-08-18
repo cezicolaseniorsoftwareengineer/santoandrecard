@@ -62,7 +62,7 @@ for appearance.
 | Flyway | 8 migrations | Versioned, auditable schema evolution applied at start. |
 | Apache Kafka | 4.1.1 (KRaft) | Domain events leave the service through a transactional outbox, at least once, keyed by customer — the only scope in which Kafka promises ordering. |
 | Redis | 8 | Distributed PIN throttle and a read-through cache for the administrative summary. Holds no source of truth and degrades open when unreachable. |
-| Quarkus Scheduler | via Quarkus | Drains the outbox outside the request path, so a slow broker cannot fail a payment already committed to the ledger. |
+| Quarkus Scheduler | via Quarkus | Drains the outbox, releases expired authorization holds and prunes idempotency records, all outside the request path — a slow broker cannot fail a payment already committed to the ledger. |
 | Keycloak + OIDC | 26.4 | Bearer-token authentication, deny by default on `/api`, identity from verified claims, and self-service registration the application never sees a password for. |
 | PBKDF2 (JDK) | 210k iterations | Card PIN derived with a per-card salt and compared in constant time. |
 | SmallRye Fault Tolerance | via Quarkus | Timeout and circuit breaker on merchant authorization with a fail-closed fallback; bounded admission rejects with `429` instead of queueing a financial request inside an open transaction. |
@@ -235,6 +235,50 @@ period failing on a connection the pool still believes is open.
 
 The credentials in `compose.yaml` and in this document are local fixtures. They
 must never be used on a database that is reachable from the internet.
+
+## What survives a restart
+
+| Data | Where it lives | Survives |
+| --- | --- | --- |
+| Cards, wallets, purchases, authorizations, ledger, outbox, idempotency | PostgreSQL | Restart, recreation, host reboot |
+| PIN attempt counters | `cards.pin_attempts` | Restart — deliberately, or restarting the service would hand an attacker a fresh budget |
+| Accounts, sessions, realm configuration | PostgreSQL, through Keycloak | Restart and recreation |
+| Kafka topics | `kafka-data` volume | Restart and recreation |
+| Throttle counters and cached summary | Redis, all keys expiring | Nothing, by design |
+
+Keycloak stores its accounts in a database rather than inside the container.
+With the development default they survived a restart but not a recreation, and
+the realm was then reimported over them — every self-registered customer
+silently gone, which is exactly the failure a demonstration finds for you.
+
+Kafka now keeps its log in a volume, matching the Kubernetes manifest that
+already had one. The outbox protects the *source* of an event, not its delivery:
+once a row is marked published it is never sent again, so losing the log loses
+every event no consumer had read yet.
+
+Idempotency records are pruned by age. Retention is thirty days — far longer
+than any client would retry, because forgetting a key while a caller still holds
+it turns their retry into a second payment. The sweep deletes in bounded
+batches, so a payment never waits behind housekeeping.
+
+### Pointing Keycloak at the same managed database
+
+Neon provides a single database, so Keycloak takes a schema inside it rather
+than a database of its own. It creates its tables but never the schema, so that
+has to exist first:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS keycloak;
+```
+
+```powershell
+$env:KC_DB_URL      = "jdbc:postgresql://HOST/DATABASE?sslmode=require&currentSchema=keycloak"
+$env:KC_DB_USERNAME = "USER"
+$env:KC_DB_PASSWORD = "PASSWORD"
+docker compose up -d keycloak
+```
+
+Identity and money share a server for convenience here, never a schema.
 
 ## Authentication
 

@@ -19,6 +19,9 @@ services:
       retries: 10
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      # Runs on first initialisation only, which is when the Keycloak database
+      # has to exist before Keycloak first connects.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
 
   redis:
     image: redis:8-alpine
@@ -46,6 +49,12 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      # The outbox protects the source of an event, not its delivery: once a row
+      # is marked published it is never sent again. Losing the log therefore
+      # loses every event no consumer had read yet.
+      - kafka-data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
       interval: 10s
@@ -57,11 +66,22 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     command: ["start-dev", "--import-realm"]
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin_local
       KC_HTTP_PORT: "8180"
       KC_HEALTH_ENABLED: "true"
+      # Accounts live in a database rather than inside the container. With the
+      # development default they survived a restart but not a recreation, and
+      # the realm was reimported over them — every self-registered customer
+      # silently gone. Override KC_DB_URL to point this at a managed instance.
+      KC_DB: postgres
+      KC_DB_URL: ${KC_DB_URL:-jdbc:postgresql://postgres:5432/keycloak}
+      KC_DB_USERNAME: ${KC_DB_USERNAME:-card_app}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-card_app_local}
     ports:
       - "8180:8180"
     volumes:
@@ -74,3 +94,4 @@ services:
 
 volumes:
   postgres-data:
+  kafka-data:
