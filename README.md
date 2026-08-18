@@ -329,6 +329,12 @@ customer: those values are read from the verified token only.
 - `customer` — own wallet, own purchases, own cards.
 - `admin` — card issuance, interest policy and the portfolio summary.
 
+While the provider is unreachable the API answers `503` with `Retry-After`, not
+`500` and not `401`. The request is still refused — authentication fails closed —
+but nothing verified a credential, so claiming the credential failed would be a
+lie, and claiming the request was malformed stops a client from retrying one that
+would now succeed.
+
 ## Accounts
 
 Customers create their own account. The interface offers "Criar minha conta",
