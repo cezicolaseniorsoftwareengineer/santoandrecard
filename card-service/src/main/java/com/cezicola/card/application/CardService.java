@@ -28,6 +28,10 @@ public class CardService {
 
     /** SQL state class for an integrity constraint violation. */
     private static final String INTEGRITY_VIOLATION = "23";
+    private static final String UQ_CARDS_TENANT_IDEMPOTENCY = "uq_cards_tenant_idempotency";
+    private static final String UQ_CARDS_NUMBER = "uq_cards_number";
+    /** Bounded: an exhausted number space must fail, not hang. */
+    private static final int NUMBER_COLLISION_ATTEMPTS = 5;
 
     /** Attempts allowed per card inside {@link #PIN_THROTTLE_WINDOW}. */
     public static final int PIN_ATTEMPTS_PER_WINDOW = 3;
@@ -197,19 +201,38 @@ public class CardService {
         return repository.findByIdempotencyKey(command.tenantId(), command.idempotencyKey());
     }
 
+    /**
+     * Inserts the card, drawing a new number if the generated one is taken.
+     *
+     * <p>Card numbers are now unique in the database, and generation is random:
+     * unlikely to collide is not the same as cannot. A collision is a fact about
+     * the draw and not about the request, so the right answer is another draw
+     * rather than an error the caller can do nothing with. The retry is bounded
+     * because an unbounded one would turn an exhausted or misbehaving number
+     * space into a hang instead of a failure.
+     */
     private Card insert(CreateCardCommand command) {
-        return repository.save(new Card(
-                UUID.randomUUID(),
-                command.tenantId(),
-                command.customerId(),
-                command.creditLimit(),
-                "BRL",
-                CardStatus.ACTIVE,
-                command.product(),
-                CardNumber.generate(),
-                null,
-                0,
-                clock.instant()), command.idempotencyKey());
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return repository.save(new Card(
+                        UUID.randomUUID(),
+                        command.tenantId(),
+                        command.customerId(),
+                        command.creditLimit(),
+                        "BRL",
+                        CardStatus.ACTIVE,
+                        command.product(),
+                        CardNumber.generate(),
+                        null,
+                        0,
+                        clock.instant()), command.idempotencyKey());
+            } catch (RuntimeException failure) {
+                if (attempt >= NUMBER_COLLISION_ATTEMPTS || !violates(failure, UQ_CARDS_NUMBER)) {
+                    throw failure;
+                }
+                metrics.cardNumberCollision();
+            }
+        }
     }
 
     /**
@@ -232,18 +255,47 @@ public class CardService {
     }
 
     private static boolean isDuplicateKey(Throwable failure) {
+        // Named rather than any integrity violation. Two unique constraints now
+        // guard this table, and reading a card-number collision as a replayed
+        // idempotency key would send the caller looking for a card that was
+        // never written.
+        return violates(failure, UQ_CARDS_TENANT_IDEMPOTENCY);
+    }
+
+    /**
+     * Whether the failure is the named unique constraint being violated.
+     *
+     * <p>The name is matched against the message because that is where both
+     * Hibernate and the driver put it. Where the name cannot be recovered — H2
+     * and PostgreSQL word these differently, and a wrapper may drop the message
+     * entirely — an integrity violation is attributed to the constraint the
+     * caller asked about only if it is the sole one that could have produced it.
+     */
+    private static boolean violates(Throwable failure, String constraint) {
+        boolean integrityViolation = false;
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-            if (cause instanceof org.hibernate.exception.ConstraintViolationException) {
+            String message = cause.getMessage();
+            if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains(constraint)) {
                 return true;
+            }
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException violation) {
+                if (violation.getConstraintName() != null) {
+                    return constraint.equalsIgnoreCase(violation.getConstraintName());
+                }
+                integrityViolation = true;
             }
             if (cause instanceof SQLException sql && sql.getSQLState() != null
                     && sql.getSQLState().startsWith(INTEGRITY_VIOLATION)) {
-                return true;
+                integrityViolation = true;
             }
             if (cause.getCause() == cause) {
                 break;
             }
         }
-        return false;
+        // An unattributable integrity violation is treated as the idempotency
+        // key, which is the overwhelmingly likely cause and the one with a safe
+        // recovery: the caller is handed the winning card. Attributing it to a
+        // number collision instead would retry an insert that will fail again.
+        return integrityViolation && UQ_CARDS_TENANT_IDEMPOTENCY.equals(constraint);
     }
 }

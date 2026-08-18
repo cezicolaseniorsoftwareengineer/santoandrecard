@@ -19,8 +19,13 @@ import java.util.UUID;
 // The unique constraint is declared here as well as in the migration so the
 // schema generated for tests matches the one running in production. Without it
 // the suite silently loses the guarantee it is supposed to be checking.
-@Table(name = "cards", uniqueConstraints = @UniqueConstraint(
-        name = "uq_cards_tenant_idempotency", columnNames = {"tenant_id", "idempotency_key"}))
+@Table(name = "cards", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_cards_tenant_idempotency",
+                columnNames = {"tenant_id", "idempotency_key"}),
+        // Global, not per tenant: the number identifies a card as an artefact,
+        // and two tenants issuing the same one would be indistinguishable to
+        // anything that reads it as a card number.
+        @UniqueConstraint(name = "uq_cards_number", columnNames = {"card_number"})})
 public class CardEntity {
     @Id
     public UUID id;

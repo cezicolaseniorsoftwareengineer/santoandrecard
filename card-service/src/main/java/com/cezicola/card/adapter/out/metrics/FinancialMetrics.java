@@ -82,6 +82,20 @@ public class FinancialMetrics {
                 .increment();
     }
 
+    /**
+     * A generated card number that was already taken.
+     *
+     * <p>Expected to stay at zero. A rising count means the number space is
+     * smaller than it looks or generation is not as random as assumed, and both
+     * are worth knowing before a customer is issued a card that collides.
+     */
+    public void cardNumberCollision() {
+        Counter.builder("card.number.collisions")
+                .description("Generated card numbers that were already issued")
+                .register(registry)
+                .increment();
+    }
+
     /** How long money sits owed to the broker before an event actually leaves. */
     public void outboxDrained(int delivered, long nanos) {
         Timer.builder("card.outbox.drain")
