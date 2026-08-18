@@ -119,6 +119,13 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Benchmarks measure, they do not assert, so a slow build
+                         agent must never turn one into a red build. Run them on
+                         purpose:
+                         mvn test -Dgroups=benchmark -Dtest.excludedGroups=none -->
+                    <excludedGroups>${test.excludedGroups}</excludedGroups>
+                </configuration>
             </plugin>
         </plugins>
     </build>

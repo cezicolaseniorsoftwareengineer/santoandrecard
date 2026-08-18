@@ -20,6 +20,8 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.version>3.33.3</quarkus.platform.version>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
+        <!-- Benchmarks are excluded from the normal build; set to "none" to include them. -->
+        <test.excludedGroups>benchmark</test.excludedGroups>
     </properties>
 
     <dependencyManagement>
