@@ -4,6 +4,7 @@
 - Date: 2026-08-16
 - Scope: Banco Santo Andre educational card and wallet platform
 - Supersedes: none
+- Amended by: ADR-003 (simulated card number and PIN verification)
 
 ## Context and boundaries
 
