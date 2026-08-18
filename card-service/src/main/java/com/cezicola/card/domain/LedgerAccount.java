@@ -12,6 +12,15 @@ public enum LedgerAccount {
     /** What the issuer owes each customer. Kept per customer. */
     CUSTOMER_WALLET(Side.CREDIT, true),
     /**
+     * Funds held for a merchant against an open authorization.
+     *
+     * <p>A hold does not take money from the customer — the issuer still owes it,
+     * just not for the customer to spend. Modelling it as its own liability is
+     * what makes the sum of wallet, held and card balances invariant across an
+     * authorization and its reversal.
+     */
+    CUSTOMER_HELD(Side.CREDIT, true),
+    /**
      * What the issuer owes each customer on the card itself. Separate from the
      * wallet because loading the card moves money between two obligations rather
      * than creating one: the pair of postings is what proves nothing was minted.

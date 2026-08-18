@@ -7,6 +7,7 @@ import com.cezicola.card.domain.InterestCalculator;
 import com.cezicola.card.domain.JournalEntry;
 import com.cezicola.card.domain.LedgerAccount;
 import com.cezicola.card.domain.PurchasePlan;
+import com.cezicola.card.adapter.out.metrics.FinancialMetrics;
 import com.cezicola.card.application.port.MerchantAuthorizationPort;
 import com.cezicola.card.application.port.SummaryCache;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -29,6 +30,7 @@ public class FinanceService {
     private final LedgerService ledger;
     private final OutboxRecorder outbox;
     private final SummaryCache summaryCache;
+    private final FinancialMetrics metrics;
     private final Clock clock = Clock.systemUTC();
 
     public FinanceService(EntityManager entityManager, InterestCalculator calculator,
@@ -36,7 +38,8 @@ public class FinanceService {
                           PurchaseBackpressureGuard backpressure,
                           LedgerService ledger,
                           OutboxRecorder outbox,
-                          SummaryCache summaryCache) {
+                          SummaryCache summaryCache,
+                          FinancialMetrics metrics) {
         this.entityManager = entityManager;
         this.calculator = calculator;
         this.merchantAuthorization = merchantAuthorization;
@@ -44,6 +47,7 @@ public class FinanceService {
         this.ledger = ledger;
         this.outbox = outbox;
         this.summaryCache = summaryCache;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -73,6 +77,7 @@ public class FinanceService {
 
         // Recorded here, inside the same transaction: the event and the money it
         // describes commit together or neither does.
+        metrics.moneyMoved("top_up", amount);
         outbox.record(tenantId, customerId, "wallet.topped-up",
                 json("customerId", customerId, "amount", amount, "balance", wallet.balance));
 
@@ -93,9 +98,11 @@ public class FinanceService {
         requireMoney(amount);
         WalletEntity wallet = lockedWallet(tenantId, customerId);
         if (wallet == null || wallet.balance.compareTo(amount) < 0) {
+            metrics.refused("card_load", "insufficient_funds");
             throw new InsufficientFundsException();
         }
         wallet.balance = wallet.balance.subtract(amount);
+        metrics.moneyMoved("card_load", amount);
 
         ledger.record(tenantId, new JournalEntry(
                 JournalEntry.Kind.CARD_LOAD,
@@ -128,6 +135,16 @@ public class FinanceService {
                 () -> executePurchase(tenantId, customerId, merchantCategory, principal, installments));
     }
 
+    /**
+     * A single-message sale: authorised and settled in one step.
+     *
+     * <p>Card networks carry both shapes. This is the one a point of sale uses
+     * when the amount is final at the moment of purchase, and it is why the
+     * instalment plan can be fixed here. When the final amount is not yet known —
+     * an order that ships in part, a booking that may be cancelled — the two-step
+     * flow in {@link AuthorizationService} holds the funds first and settles
+     * later.
+     */
     private PurchaseView executePurchase(UUID tenantId, UUID customerId, String merchantCategory,
                                           BigDecimal principal, int installments) {
         if (merchantCategory == null || merchantCategory.isBlank() || merchantCategory.length() > 64) {
@@ -136,13 +153,16 @@ public class FinanceService {
         PurchasePlan plan = quote(tenantId, principal, installments);
         var decision = merchantAuthorization.authorize(tenantId, customerId, merchantCategory, plan.total());
         if (decision != MerchantAuthorizationPort.AuthorizationDecision.APPROVED) {
+            metrics.refused("purchase", "network_unavailable");
             throw new MerchantAuthorizationUnavailableException();
         }
         WalletEntity wallet = lockedWallet(tenantId, customerId);
         if (wallet == null || wallet.balance.compareTo(plan.total()) < 0) {
+            metrics.refused("purchase", "insufficient_funds");
             throw new InsufficientFundsException();
         }
         wallet.balance = wallet.balance.subtract(plan.total());
+        metrics.moneyMoved("purchase", plan.total());
         PurchaseEntity purchase = new PurchaseEntity();
         purchase.id = UUID.randomUUID();
         purchase.tenantId = tenantId;

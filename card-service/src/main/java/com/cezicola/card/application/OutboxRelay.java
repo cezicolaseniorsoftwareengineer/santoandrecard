@@ -1,5 +1,6 @@
 package com.cezicola.card.application;
 
+import com.cezicola.card.adapter.out.metrics.FinancialMetrics;
 import com.cezicola.card.adapter.out.persistence.OutboxEventEntity;
 import com.cezicola.card.application.port.EventPublisher;
 import com.cezicola.card.domain.DomainEvent;
@@ -34,6 +35,7 @@ public class OutboxRelay {
 
     private final EntityManager entityManager;
     private final EventPublisher publisher;
+    private final FinancialMetrics metrics;
     private final Clock clock;
     private final int batchSize;
     private final int maxAttempts;
@@ -41,14 +43,17 @@ public class OutboxRelay {
     @jakarta.inject.Inject
     public OutboxRelay(EntityManager entityManager,
                        EventPublisher publisher,
+                       FinancialMetrics metrics,
                        @ConfigProperty(name = "card.outbox.batch-size") int batchSize,
                        @ConfigProperty(name = "card.outbox.max-attempts") int maxAttempts) {
-        this(entityManager, publisher, Clock.systemUTC(), batchSize, maxAttempts);
+        this(entityManager, publisher, metrics, Clock.systemUTC(), batchSize, maxAttempts);
     }
 
-    OutboxRelay(EntityManager entityManager, EventPublisher publisher, Clock clock, int batchSize, int maxAttempts) {
+    OutboxRelay(EntityManager entityManager, EventPublisher publisher, FinancialMetrics metrics,
+                Clock clock, int batchSize, int maxAttempts) {
         this.entityManager = entityManager;
         this.publisher = publisher;
+        this.metrics = metrics;
         this.clock = clock;
         this.batchSize = batchSize;
         this.maxAttempts = maxAttempts;
@@ -62,6 +67,7 @@ public class OutboxRelay {
      * single poisoned event would keep replaying an entire batch.
      */
     public int drain() {
+        long startedAt = System.nanoTime();
         List<UUID> pending = QuarkusTransaction.requiringNew().call(this::claimable);
         int delivered = 0;
         for (UUID id : pending) {
@@ -69,6 +75,7 @@ public class OutboxRelay {
                 delivered++;
             }
         }
+        metrics.outboxDrained(delivered, System.nanoTime() - startedAt);
         return delivered;
     }
 
@@ -104,6 +111,7 @@ public class OutboxRelay {
                 entity.lastError = null;
                 return true;
             } catch (RuntimeException failure) {
+                metrics.outboxDeliveryFailed();
                 entity.attempts++;
                 entity.lastError = truncate(failure.getMessage());
                 if (entity.attempts >= maxAttempts) {

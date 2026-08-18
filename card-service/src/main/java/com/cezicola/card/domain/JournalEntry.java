@@ -13,7 +13,10 @@ import java.util.UUID;
  */
 public record JournalEntry(Kind kind, String description, UUID referenceId, List<Posting> postings) {
 
-    public enum Kind { OPENING_BALANCE, TOP_UP, PURCHASE, CARD_LOAD }
+    public enum Kind {
+        OPENING_BALANCE, TOP_UP, PURCHASE, CARD_LOAD,
+        AUTHORIZATION_HOLD, AUTHORIZATION_CAPTURE, AUTHORIZATION_REVERSAL, AUTHORIZATION_EXPIRY
+    }
 
     public JournalEntry {
         if (description == null || description.isBlank() || description.length() > 140) {

@@ -1,5 +1,6 @@
 package com.cezicola.card.application;
 
+import com.cezicola.card.adapter.out.metrics.FinancialMetrics;
 import com.cezicola.card.application.port.CardRepository;
 import com.cezicola.card.application.port.RateLimiter;
 import com.cezicola.card.domain.Card;
@@ -34,20 +35,23 @@ public class CardService {
 
     private final CardRepository repository;
     private final RateLimiter rateLimiter;
+    private final FinancialMetrics metrics;
     private final Clock clock;
     private final BigDecimal selfServiceCreditLimit;
 
     @Inject
     public CardService(CardRepository repository,
                        RateLimiter rateLimiter,
+                       FinancialMetrics metrics,
                        @ConfigProperty(name = "card.self-service.credit-limit") BigDecimal selfServiceCreditLimit) {
-        this(repository, rateLimiter, Clock.systemUTC(), selfServiceCreditLimit);
+        this(repository, rateLimiter, metrics, Clock.systemUTC(), selfServiceCreditLimit);
     }
 
-    CardService(CardRepository repository, RateLimiter rateLimiter, Clock clock,
+    CardService(CardRepository repository, RateLimiter rateLimiter, FinancialMetrics metrics, Clock clock,
                 BigDecimal selfServiceCreditLimit) {
         this.repository = repository;
         this.rateLimiter = rateLimiter;
+        this.metrics = metrics;
         this.clock = clock;
         this.selfServiceCreditLimit = selfServiceCreditLimit;
     }
@@ -131,14 +135,17 @@ public class CardService {
         // replicas before any row is written. This window is what makes the
         // budget cost an attacker time.
         if (!rateLimiter.tryAcquire("pin:" + card.id(), PIN_ATTEMPTS_PER_WINDOW, PIN_THROTTLE_WINDOW)) {
+            metrics.pinVerification("throttled");
             throw new CardPinException(CardPinException.Reason.THROTTLED,
                     Math.max(MAX_PIN_ATTEMPTS - card.pinAttempts(), 0));
         }
 
         if (!card.hasPin()) {
+            metrics.pinVerification("not_set");
             throw new CardPinException(CardPinException.Reason.NOT_SET, MAX_PIN_ATTEMPTS);
         }
         if (card.pinAttempts() >= MAX_PIN_ATTEMPTS) {
+            metrics.pinVerification("locked");
             throw new CardPinException(CardPinException.Reason.LOCKED, 0);
         }
 
@@ -148,6 +155,7 @@ public class CardService {
             // attempt inside the transaction that then throws would roll the
             // increment back with it, handing every attacker an unlimited budget.
             recordAttempts(tenantId, card, attempts);
+            metrics.pinVerification(attempts >= MAX_PIN_ATTEMPTS ? "locked" : "incorrect");
             throw new CardPinException(
                     attempts >= MAX_PIN_ATTEMPTS ? CardPinException.Reason.LOCKED
                             : CardPinException.Reason.INCORRECT,
@@ -157,6 +165,7 @@ public class CardService {
         // A correct PIN clears the budget, so isolated mistakes never accumulate
         // into a lock for a cardholder who does know it.
         recordAttempts(tenantId, card, 0);
+        metrics.pinVerification("accepted");
         return card.number();
     }
 

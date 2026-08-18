@@ -37,6 +37,9 @@ class OutboxRelayTest {
     @Inject
     FinanceService finance;
 
+    @Inject
+    com.cezicola.card.adapter.out.metrics.FinancialMetrics metrics;
+
     @Test
     void writesTheEventInTheSameTransactionAsTheMoney() {
         UUID customer = UUID.randomUUID();
@@ -72,7 +75,7 @@ class OutboxRelayTest {
         QuarkusTransaction.requiringNew().run(() -> recorder.record(TENANT, customer, "card.loaded", "{}"));
 
         RecordingPublisher publisher = new RecordingPublisher();
-        OutboxRelay relay = new OutboxRelay(entityManager, publisher, java.time.Clock.systemUTC(), 100, 10);
+        OutboxRelay relay = new OutboxRelay(entityManager, publisher, metrics, java.time.Clock.systemUTC(), 100, 10);
 
         relay.drain();
         assertNotNull(eventsFor(customer).get(0).publishedAt);
@@ -90,7 +93,7 @@ class OutboxRelayTest {
         QuarkusTransaction.requiringNew().run(() -> recorder.record(TENANT, customer, "card.loaded", "{}"));
 
         FailingPublisher publisher = new FailingPublisher();
-        OutboxRelay relay = new OutboxRelay(entityManager, publisher, java.time.Clock.systemUTC(), 100, 10);
+        OutboxRelay relay = new OutboxRelay(entityManager, publisher, metrics, java.time.Clock.systemUTC(), 100, 10);
 
         assertEquals(0, relay.drain());
 
@@ -104,7 +107,7 @@ class OutboxRelayTest {
         // batch count is not asserted — the outbox is shared, so other events
         // recorded by this class ride along in the same drain.
         OutboxRelay recovered =
-                new OutboxRelay(entityManager, new RecordingPublisher(), java.time.Clock.systemUTC(), 100, 10);
+                new OutboxRelay(entityManager, new RecordingPublisher(), metrics, java.time.Clock.systemUTC(), 100, 10);
         recovered.drain();
         assertNotNull(eventsFor(customer).get(0).publishedAt, "the missed event was never redelivered");
     }
