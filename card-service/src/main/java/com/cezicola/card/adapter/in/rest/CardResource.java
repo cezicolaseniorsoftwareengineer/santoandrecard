@@ -8,11 +8,13 @@ import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -86,6 +88,31 @@ public class CardResource {
                 .stream().map(CardResponse::from).toList();
     }
 
+    /**
+     * Sets the PIN that guards the number. It is sent once, derived immediately
+     * and never stored or logged in the clear.
+     */
+    @PUT
+    @Path("/{id}/pin")
+    @RolesAllowed(Roles.CUSTOMER)
+    @Operation(summary = "Set the PIN for the caller's own card")
+    public CardResponse setPin(@PathParam("id") UUID id, @Valid SetPinRequest request) {
+        return CardResponse.from(service.setPin(caller.tenantId(), caller.customerId(), id, request.pin()));
+    }
+
+    /**
+     * Returns the full number to a cardholder who proves the PIN. A POST because
+     * it carries a secret and changes state: every attempt is counted.
+     */
+    @POST
+    @Path("/{id}/number")
+    @RolesAllowed(Roles.CUSTOMER)
+    @Operation(summary = "Reveal the full card number with the PIN")
+    public CardNumberResponse revealNumber(@PathParam("id") UUID id, @Valid RevealNumberRequest request) {
+        var number = service.revealNumber(caller.tenantId(), caller.customerId(), id, request.pin());
+        return new CardNumberResponse(number.value(), number.grouped());
+    }
+
     @GET
     @Path("/{id}")
     @RolesAllowed({Roles.CUSTOMER, Roles.ADMIN})
@@ -99,4 +126,12 @@ public class CardResource {
         }
         return CardResponse.from(card);
     }
+
+    /** Four digits, checked before anything is derived from them. */
+    public record SetPinRequest(@Pattern(regexp = "\\d{4}", message = "the PIN must contain exactly four digits")
+                                String pin) {}
+
+    public record RevealNumberRequest(@Pattern(regexp = "\\d{4}") String pin) {}
+
+    public record CardNumberResponse(String number, String formatted) {}
 }

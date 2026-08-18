@@ -24,12 +24,25 @@ export interface CardResponse {
   readonly product: 'PLATINUM';
   readonly productName: string;
   readonly lastFourDigits: string;
+  readonly pinDefined: boolean;
   readonly createdAt: string;
+}
+
+export interface CardNumberResponse {
+  readonly number: string;
+  readonly formatted: string;
+}
+
+export interface CardBalances {
+  readonly customerId: string;
+  readonly walletBalance: number;
+  readonly cardBalance: number;
 }
 
 export interface WalletResponse {
   readonly customerId: string;
   readonly balance: number;
+  readonly cardBalance: number;
 }
 
 export interface PurchaseQuote {

@@ -17,6 +17,9 @@ export class BankStore {
 
   readonly session = this.auth.session;
   readonly balance = signal<number | null>(null);
+  readonly cardBalance = signal<number | null>(null);
+  /** Held in memory only, and only while the holder keeps it revealed. */
+  readonly revealedNumber = signal<string | null>(null);
   readonly cards = signal<readonly CardResponse[]>([]);
   readonly purchases = signal<readonly PurchaseResponse[]>([]);
   readonly adminSummary = signal<AdminSummary | null>(null);
@@ -45,6 +48,7 @@ export class BankStore {
         firstValueFrom(this.api.statement())
       ]);
       this.balance.set(wallet.balance);
+      this.cardBalance.set(wallet.cardBalance);
       this.cards.set(cards);
       this.purchases.set(purchases);
       return null;
@@ -64,10 +68,58 @@ export class BankStore {
     try {
       const card = await firstValueFrom(this.api.issueCard());
       this.cards.set([card]);
+      this.revealedNumber.set(null);
       return null;
     } catch (error) {
       return describe(error);
     }
+  }
+
+  /** Transfers wallet money onto the card. Both figures come back from the API. */
+  async loadCard(amount: number): Promise<string | null> {
+    if (!Number.isFinite(amount) || amount <= 0) return 'Informe um valor maior que zero.';
+    try {
+      const balances = await firstValueFrom(this.api.loadCard(round(amount)));
+      this.balance.set(balances.walletBalance);
+      this.cardBalance.set(balances.cardBalance);
+      return null;
+    } catch (error) {
+      return describe(error);
+    }
+  }
+
+  async setPin(pin: string): Promise<string | null> {
+    const card = this.card();
+    if (!card) return 'Nenhum cartão emitido.';
+    if (!/^\d{4}$/.test(pin)) return 'O PIN precisa ter exatamente 4 dígitos.';
+    try {
+      const updated = await firstValueFrom(this.api.setPin(card.id, pin));
+      this.cards.set([updated]);
+      return null;
+    } catch (error) {
+      return describe(error);
+    }
+  }
+
+  /**
+   * Asks the API for the number. It is never stored: closing the card or signing
+   * out drops it, and a reload has to prove the PIN again.
+   */
+  async revealNumber(pin: string): Promise<string | null> {
+    const card = this.card();
+    if (!card) return 'Nenhum cartão emitido.';
+    if (!/^\d{4}$/.test(pin)) return 'O PIN precisa ter exatamente 4 dígitos.';
+    try {
+      const revealed = await firstValueFrom(this.api.revealNumber(card.id, pin));
+      this.revealedNumber.set(revealed.formatted);
+      return null;
+    } catch (error) {
+      return describe(error);
+    }
+  }
+
+  hideNumber(): void {
+    this.revealedNumber.set(null);
   }
 
   async addBalance(amount: number): Promise<string | null> {
@@ -120,6 +172,8 @@ export class BankStore {
 
   clear(): void {
     this.balance.set(null);
+    this.cardBalance.set(null);
+    this.revealedNumber.set(null);
     this.cards.set([]);
     this.purchases.set([]);
     this.adminSummary.set(null);

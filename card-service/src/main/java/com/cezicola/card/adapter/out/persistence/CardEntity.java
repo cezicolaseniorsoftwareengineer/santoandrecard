@@ -48,6 +48,19 @@ public class CardEntity {
     @Column(name = "last_four_digits", nullable = false, length = 4)
     public String lastFourDigits;
 
+    @Column(name = "card_number", nullable = false, length = 16)
+    public String cardNumber;
+
+    /** Null until the cardholder sets a PIN; the number stays hidden until they do. */
+    @Column(name = "pin_salt", length = 64)
+    public String pinSalt;
+
+    @Column(name = "pin_hash", length = 128)
+    public String pinHash;
+
+    @Column(name = "pin_attempts", nullable = false)
+    public int pinAttempts;
+
     @Column(name = "idempotency_key", nullable = false, length = 128)
     public String idempotencyKey;
 

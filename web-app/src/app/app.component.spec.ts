@@ -48,11 +48,11 @@ async function render(session: Session | null): Promise<ComponentFixture<AppComp
     });
   } else if (session?.role === 'CUSTOMER') {
     await Promise.all([
-      answer(http, `${API_BASE_URL}/wallet`, { customerId: 'c1', balance: 1166.66 }),
+      answer(http, `${API_BASE_URL}/wallet`, { customerId: 'c1', balance: 1166.66, cardBalance: 250 }),
       answer(http, `${API_BASE_URL}/cards`, [{
         id: 'card-1', customerId: 'c1', creditLimit: 5000, currency: 'BRL',
         status: 'ACTIVE', product: 'PLATINUM', productName: 'Santo André Card Platinum',
-        lastFourDigits: '9808', createdAt: '2026-08-17T00:00:00Z'
+        lastFourDigits: '9808', pinDefined: false, createdAt: '2026-08-17T00:00:00Z'
       }]),
       answer(http, `${API_BASE_URL}/purchases?limit=50`, [])
     ]);
@@ -83,6 +83,11 @@ describe('AppComponent', () => {
     expect(text).toContain('Saldo disponível');
     expect(text).toContain('Ana Cardoso');
     expect(text).toContain('9808');
+    expect(text).toContain('No cartão pré-pago');
+    // Without a PIN the card offers to create one rather than to reveal.
+    expect(text).toContain('criar seu PIN');
+    // The full number never travels with the card itself.
+    expect(text).not.toContain('9999');
   });
 
   it('finishes the boot when the API accepts the request and never answers', async () => {

@@ -2,6 +2,8 @@ package com.cezicola.card.application;
 
 import com.cezicola.card.application.port.CardRepository;
 import com.cezicola.card.domain.Card;
+import com.cezicola.card.domain.CardNumber;
+import com.cezicola.card.domain.CardPin;
 import com.cezicola.card.domain.CardProduct;
 import com.cezicola.card.domain.CardStatus;
 import io.quarkus.narayana.jta.QuarkusTransaction;
@@ -10,7 +12,6 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.math.BigDecimal;
-import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.util.List;
@@ -19,7 +20,8 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class CardService {
-    private static final SecureRandom RANDOM = new SecureRandom();
+    /** The card locks after this many consecutive wrong PINs. */
+    public static final int MAX_PIN_ATTEMPTS = 5;
 
     /** SQL state class for an integrity constraint violation. */
     private static final String INTEGRITY_VIOLATION = "23";
@@ -89,6 +91,71 @@ public class CardService {
         }
     }
 
+    /**
+     * Sets or replaces the cardholder's PIN and clears the attempt counter.
+     *
+     * <p>Only the owner may do this, and the check happens here rather than in
+     * the resource so no future entry point can skip it.
+     */
+    public Card setPin(UUID tenantId, UUID customerId, UUID cardId, String plainPin) {
+        return inTransaction(() -> {
+            Card card = ownedCard(tenantId, customerId, cardId);
+            repository.updatePin(tenantId, card.id(), CardPin.of(plainPin), 0);
+            return repository.findById(tenantId, card.id()).orElseThrow(() -> new CardNotFoundException(cardId));
+        });
+    }
+
+    /**
+     * Reveals the number to a cardholder who proves the PIN.
+     *
+     * <p>Four digits is ten thousand possibilities: a caller who may guess
+     * without limit will succeed. Every failure is counted and the card locks at
+     * {@value #MAX_PIN_ATTEMPTS}, and the count is persisted rather than held in
+     * memory so restarting the service does not hand an attacker a fresh budget.
+     */
+    public CardNumber revealNumber(UUID tenantId, UUID customerId, UUID cardId, String plainPin) {
+        Card card = inTransaction(() -> ownedCard(tenantId, customerId, cardId));
+        if (!card.hasPin()) {
+            throw new CardPinException(CardPinException.Reason.NOT_SET, MAX_PIN_ATTEMPTS);
+        }
+        if (card.pinAttempts() >= MAX_PIN_ATTEMPTS) {
+            throw new CardPinException(CardPinException.Reason.LOCKED, 0);
+        }
+
+        if (!card.pin().matches(plainPin)) {
+            int attempts = card.pinAttempts() + 1;
+            // Committed on its own, before the failure is raised. Counting the
+            // attempt inside the transaction that then throws would roll the
+            // increment back with it, handing every attacker an unlimited budget.
+            recordAttempts(tenantId, card, attempts);
+            throw new CardPinException(
+                    attempts >= MAX_PIN_ATTEMPTS ? CardPinException.Reason.LOCKED
+                            : CardPinException.Reason.INCORRECT,
+                    MAX_PIN_ATTEMPTS - attempts);
+        }
+
+        // A correct PIN clears the budget, so isolated mistakes never accumulate
+        // into a lock for a cardholder who does know it.
+        recordAttempts(tenantId, card, 0);
+        return card.number();
+    }
+
+    private void recordAttempts(UUID tenantId, Card card, int attempts) {
+        inTransaction(() -> {
+            repository.updatePin(tenantId, card.id(), card.pin(), attempts);
+            return null;
+        });
+    }
+
+    /** A card that is not the caller's own is reported as absent rather than forbidden. */
+    private Card ownedCard(UUID tenantId, UUID customerId, UUID cardId) {
+        Card card = repository.findById(tenantId, cardId).orElseThrow(() -> new CardNotFoundException(cardId));
+        if (!card.customerId().equals(customerId)) {
+            throw new CardNotFoundException(cardId);
+        }
+        return card;
+    }
+
     public Card get(UUID tenantId, UUID id) {
         return repository.findById(tenantId, id).orElseThrow(() -> new CardNotFoundException(id));
     }
@@ -110,7 +177,9 @@ public class CardService {
                 "BRL",
                 CardStatus.ACTIVE,
                 command.product(),
-                "%04d".formatted(RANDOM.nextInt(10_000)),
+                CardNumber.generate(),
+                null,
+                0,
                 clock.instant()), command.idempotencyKey());
     }
 

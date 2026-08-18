@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from './auth.config';
-import { AdminSummary, CardResponse, InterestPolicy, PurchaseQuote, PurchaseResponse, WalletResponse } from './bank.models';
+import { AdminSummary, CardBalances, CardNumberResponse, CardResponse, InterestPolicy, PurchaseQuote, PurchaseResponse, WalletResponse } from './bank.models';
 
 /** Thin typed client over the card-service REST API. */
 @Injectable({ providedIn: 'root' })
@@ -24,6 +24,20 @@ export class CardApi {
   /** Issues the calling customer's own card. The limit is issuer policy, so the request carries no body. */
   issueCard(): Observable<CardResponse> {
     return this.http.post<CardResponse>(`${API_BASE_URL}/cards/self-service`, null);
+  }
+
+  /** Moves the customer's own money from the wallet onto the card. */
+  loadCard(amount: number): Observable<CardBalances> {
+    return this.http.post<CardBalances>(`${API_BASE_URL}/wallet/card-loads`, { amount });
+  }
+
+  setPin(cardId: string, pin: string): Observable<CardResponse> {
+    return this.http.put<CardResponse>(`${API_BASE_URL}/cards/${cardId}/pin`, { pin });
+  }
+
+  /** POST because it carries a secret and every attempt is counted by the API. */
+  revealNumber(cardId: string, pin: string): Observable<CardNumberResponse> {
+    return this.http.post<CardNumberResponse>(`${API_BASE_URL}/cards/${cardId}/number`, { pin });
   }
 
   topUp(amount: number): Observable<WalletResponse> {

@@ -33,6 +33,7 @@ class CardTest {
 
     private static Card cardWithLimit(BigDecimal limit) {
         return new Card(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), limit, "BRL", CardStatus.ACTIVE,
-                CardProduct.PLATINUM, "1234", Instant.parse("2026-01-01T00:00:00Z"));
+                CardProduct.PLATINUM, CardNumber.generate(), null, 0,
+                Instant.parse("2026-01-01T00:00:00Z"));
     }
 }

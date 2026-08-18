@@ -11,6 +11,12 @@ package com.cezicola.card.domain;
 public enum LedgerAccount {
     /** What the issuer owes each customer. Kept per customer. */
     CUSTOMER_WALLET(Side.CREDIT, true),
+    /**
+     * What the issuer owes each customer on the card itself. Separate from the
+     * wallet because loading the card moves money between two obligations rather
+     * than creating one: the pair of postings is what proves nothing was minted.
+     */
+    CARD_PREPAID(Side.CREDIT, true),
     /** Funds brought into the platform. */
     FUNDING(Side.DEBIT, false),
     /** What the issuer owes merchants for authorised purchases. */

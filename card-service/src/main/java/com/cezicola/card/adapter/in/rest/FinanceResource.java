@@ -31,6 +31,15 @@ public class FinanceResource {
         return Response.status(201).entity(service.topUp(caller.tenantId(), caller.customerId(), request.amount())).build();
     }
 
+    /** Moves the customer's own money from the wallet onto the card. */
+    @POST @Path("/wallet/card-loads")
+    @RolesAllowed(Roles.CUSTOMER)
+    public Response loadCard(@Valid TopUpRequest request) {
+        return Response.status(201)
+                .entity(service.loadCard(caller.tenantId(), caller.customerId(), request.amount()))
+                .build();
+    }
+
     @GET @Path("/wallet")
     @RolesAllowed(Roles.CUSTOMER)
     public Object wallet() {

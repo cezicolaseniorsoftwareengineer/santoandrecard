@@ -68,6 +68,14 @@ public class LedgerService {
 
     /** Balance of a customer wallet as the ledger sees it. */
     public BigDecimal walletBalance(UUID tenantId, UUID customerId) {
+        return balanceOf(tenantId, LedgerAccount.CUSTOMER_WALLET, customerId);
+    }
+
+    /**
+     * Balance of any per-customer account, read on its normal side so the figure
+     * is positive when the account holds what it is supposed to hold.
+     */
+    public BigDecimal balanceOf(UUID tenantId, LedgerAccount account, UUID customerId) {
         Object[] sides = (Object[]) entityManager.createQuery("""
                         select
                           coalesce(sum(case when p.direction = com.cezicola.card.domain.LedgerAccount$Side.CREDIT
@@ -80,11 +88,16 @@ public class LedgerService {
                           and p.customerId = :customerId
                         """)
                 .setParameter("tenantId", tenantId)
-                .setParameter("account", LedgerAccount.CUSTOMER_WALLET)
+                .setParameter("account", account)
                 .setParameter("customerId", customerId)
                 .getSingleResult();
-        // A wallet is a liability, so it grows on the credit side.
-        return money(sides[0]).subtract(money(sides[1]));
+        // Both of these accounts are liabilities: the issuer owes the customer, so
+        // they grow on the credit side.
+        BigDecimal credits = money(sides[0]);
+        BigDecimal debits = money(sides[1]);
+        return account.normalSide() == LedgerAccount.Side.CREDIT
+                ? credits.subtract(debits)
+                : debits.subtract(credits);
     }
 
     /** Movements of a customer wallet, most recent first. */

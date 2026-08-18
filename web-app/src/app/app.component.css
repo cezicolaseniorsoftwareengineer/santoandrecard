@@ -292,16 +292,45 @@ small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--m
 }
 .hero-date { text-align: right; font-size: 13px; color: rgba(255, 255, 255, .7); }
 
+.balances { display: flex; gap: var(--s6); flex-wrap: wrap; }
+.balance-line { display: flex; align-items: center; gap: var(--s3); }
+.hero-row.customer .secondary-balance { font-size: clamp(20px, 2.2vw, 26px); color: rgba(255, 255, 255, .82); }
+
+/* The toggle is the icon, so it carries its meaning in aria-label rather than
+   in visible text. */
+.eye {
+  display: grid; place-items: center;
+  width: 34px; height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, .82);
+  cursor: pointer;
+  transition: border-color .12s ease, color .12s ease;
+}
+.eye:hover { border-color: rgba(255, 255, 255, .6); color: #fff; }
+.eye svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+
+.hero-forms { display: flex; gap: var(--s4); flex-wrap: wrap; }
+
 .quick-deposit { min-width: 244px; }
 .quick-deposit label { color: rgba(255, 255, 255, .7); margin-top: 0; font-size: 12px; }
+/* On the navy surface the field stays navy: a white box would punch a hole in
+   the block. The amount is therefore white, and the contrast holds. */
 .quick-deposit > div {
   display: flex; align-items: center; gap: var(--s2);
-  background: #fff;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .28);
   border-radius: var(--radius-sm);
   padding: 4px 4px 4px var(--s3);
 }
-.quick-deposit span { color: var(--muted); font-size: 13px; }
+.quick-deposit > div:focus-within { border-color: rgba(255, 255, 255, .7); }
+.quick-deposit span { color: rgba(255, 255, 255, .7); font-size: 13px; }
+.quick-deposit input { background: transparent; color: #fff; }
+.quick-deposit input::selection { background: rgba(255, 255, 255, .3); color: #fff; }
 .quick-deposit input { border: 0; padding: 6px 0; font-variant-numeric: tabular-nums; font-weight: 550; }
+.quick-deposit input:hover, .quick-deposit input:focus { border: 0; }
 .quick-deposit input:focus { border: 0; }
 .quick-deposit button {
   border: 0; border-radius: 6px;
@@ -335,14 +364,30 @@ small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--m
   align-items: stretch;
 }
 
+/* An ID-1 card is 85.60 x 53.98 mm. Holding that ratio is what makes the
+   rendering read as a card rather than as a wide banner, and the width is capped
+   so it never grows past a plausible physical size on a large screen. */
+.card-slot { display: flex; flex-direction: column; gap: var(--s2); align-items: flex-start; }
+
 .credit-card {
-  min-height: 196px;
-  border-radius: var(--radius-md);
-  padding: var(--s5);
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 85.6 / 53.98;
+  border-radius: 14px;
+  padding: clamp(var(--s3), 4.2%, var(--s5));
   color: #fff;
   display: flex; flex-direction: column; justify-content: space-between;
   background: var(--navy-800);
+  text-align: left;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  /* The number sizes against the card, not the viewport, so it stays in
+     proportion whatever the surrounding grid does. */
+  container-type: inline-size;
 }
+.credit-card:focus-visible { outline: 2px solid var(--navy-700); outline-offset: 3px; }
+.card-hint { margin: 0; font-size: 12.5px; color: var(--muted); max-width: 420px; }
 .card-top {
   display: flex; justify-content: space-between; align-items: baseline;
   font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
@@ -379,10 +424,12 @@ small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--m
 }
 
 .credit-card p {
-  font-size: 19px;
-  letter-spacing: .14em;
+  font-size: clamp(14px, 4.4cqw, 20px);
+  letter-spacing: .12em;
   margin: 0;
+  white-space: nowrap;
 }
+.card-number { font-variant-numeric: tabular-nums; }
 .card-bottom {
   display: flex; justify-content: space-between; align-items: flex-end;
   font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
@@ -562,4 +609,54 @@ small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--m
   .hero-row, .hero-row.customer { flex-direction: column; align-items: stretch; }
   .quick-deposit { min-width: 0; }
   .hero-date { text-align: left; }
+}
+
+/* ------------------------------------------------------------------ PIN */
+
+.pin-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(11, 18, 32, .55);
+}
+.pin-dialog {
+  position: fixed; z-index: 91;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(360px, calc(100vw - var(--s5) * 2));
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.pin-dialog h3 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.015em; }
+.pin-dialog > p { margin: var(--s2) 0 var(--s4); font-size: 13px; color: var(--muted); }
+.pin-dialog label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: var(--s2); }
+/* Four digits, spaced out: the field should look like a PIN pad, not a password. */
+.pin-dialog input {
+  font-size: 24px;
+  letter-spacing: .5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.pin-actions { display: flex; gap: var(--s3); margin-top: var(--s4); }
+.pin-actions button { flex: 1; }
+
+/* ------------------------------------------------- responsive, small screens */
+
+@media (max-width: 560px) {
+  .content { padding: var(--s4) var(--s3) var(--s6); }
+  .hero-row, .hero-row.customer { padding: var(--s4); }
+  .balances { gap: var(--s4); flex-direction: column; }
+  .hero-forms { flex-direction: column; gap: var(--s3); }
+  .quick-deposit { width: 100%; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .credit-card, .card-hint { max-width: none; }
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .topbar { flex-direction: column; align-items: flex-start; gap: var(--s2); }
+  .transaction { gap: var(--s2); }
+  .sidebar nav button { flex: 1 1 auto; }
+}
+
+/* A phone in landscape is short, not narrow: the splash mark would otherwise
+   take the whole viewport height. */
+@media (max-height: 420px) {
+  .splash img { width: min(160px, 40vw); }
 }

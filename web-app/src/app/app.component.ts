@@ -32,6 +32,9 @@ export class AppComponent implements OnInit {
   readonly isAdmin = computed(() => this.session()?.role === 'ADMIN');
 
   depositAmount = 250;
+  transferAmount = 100;
+  pin = '';
+  readonly pinPrompt = signal<'none' | 'set' | 'reveal'>('none');
   category: MerchantCategory = 'Shopping';
   purchaseAmount = 600;
   installments = 3;
@@ -95,6 +98,43 @@ export class AppComponent implements OnInit {
 
   async issueCard(): Promise<void> {
     await this.run(() => this.store.issueCard(), 'Cartão emitido e já disponível.');
+  }
+
+  async transferToCard(): Promise<void> {
+    await this.run(() => this.store.loadCard(this.transferAmount), 'Saldo transferido para o cartão.');
+  }
+
+  /** Clicking the card asks for the PIN — to set one the first time, to reveal after that. */
+  openCard(): void {
+    if (this.store.revealedNumber()) {
+      this.store.hideNumber();
+      return;
+    }
+    this.pin = '';
+    this.pinPrompt.set(this.store.card()?.pinDefined ? 'reveal' : 'set');
+  }
+
+  closePinPrompt(): void {
+    this.pinPrompt.set('none');
+    this.pin = '';
+  }
+
+  async submitPin(): Promise<void> {
+    const setting = this.pinPrompt() === 'set';
+    const pin = this.pin;
+    this.busy.set(true);
+    const error = setting ? await this.store.setPin(pin) : await this.store.revealNumber(pin);
+    this.busy.set(false);
+
+    if (error) {
+      this.showToast(error);
+      // The prompt stays open on a wrong PIN so the holder can try again, and
+      // closes once the card is locked: retrying is no longer the way out.
+      if (error.includes('bloqueado')) this.closePinPrompt();
+      return;
+    }
+    this.closePinPrompt();
+    this.showToast(setting ? 'PIN definido. Toque no cartão para ver o número.' : '');
   }
 
   async addBalance(): Promise<void> {

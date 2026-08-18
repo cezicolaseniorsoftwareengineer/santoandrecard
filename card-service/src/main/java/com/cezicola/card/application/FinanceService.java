@@ -64,7 +64,41 @@ public class FinanceService {
                         JournalEntry.Posting.debit(LedgerAccount.FUNDING, null, amount),
                         JournalEntry.Posting.credit(LedgerAccount.CUSTOMER_WALLET, customerId, amount))));
 
-        return new WalletView(customerId, wallet.balance);
+        return new WalletView(customerId, wallet.balance, cardBalance(tenantId, customerId));
+    }
+
+    /**
+     * Moves money from the wallet onto the card.
+     *
+     * <p>Nothing is created here: the customer is owed the same amount before and
+     * after, on a different account. That is what the pair of postings proves —
+     * the wallet is debited and the card credited in one balanced entry, in the
+     * same transaction as the wallet projection, so the book and the projection
+     * cannot drift apart.
+     */
+    @Transactional
+    public CardBalanceView loadCard(UUID tenantId, UUID customerId, BigDecimal amount) {
+        requireMoney(amount);
+        WalletEntity wallet = lockedWallet(tenantId, customerId);
+        if (wallet == null || wallet.balance.compareTo(amount) < 0) {
+            throw new InsufficientFundsException();
+        }
+        wallet.balance = wallet.balance.subtract(amount);
+
+        ledger.record(tenantId, new JournalEntry(
+                JournalEntry.Kind.CARD_LOAD,
+                "Transferência da carteira para o cartão",
+                null,
+                List.of(
+                        JournalEntry.Posting.debit(LedgerAccount.CUSTOMER_WALLET, customerId, amount),
+                        JournalEntry.Posting.credit(LedgerAccount.CARD_PREPAID, customerId, amount))));
+
+        return new CardBalanceView(customerId, wallet.balance, cardBalance(tenantId, customerId));
+    }
+
+    /** Read from the postings, never from a stored figure: the book is the truth. */
+    public BigDecimal cardBalance(UUID tenantId, UUID customerId) {
+        return ledger.balanceOf(tenantId, LedgerAccount.CARD_PREPAID, customerId);
     }
 
     public PurchasePlan quote(UUID tenantId, BigDecimal principal, int installments) {
@@ -145,7 +179,9 @@ public class FinanceService {
     /** Wallet of the calling customer. A customer with no wallet yet reads zero. */
     public WalletView wallet(UUID tenantId, UUID customerId) {
         WalletEntity wallet = entityManager.find(WalletEntity.class, WalletEntity.key(tenantId, customerId));
-        return new WalletView(customerId, wallet == null ? BigDecimal.ZERO.setScale(2) : wallet.balance);
+        return new WalletView(customerId,
+                wallet == null ? BigDecimal.ZERO.setScale(2) : wallet.balance,
+                cardBalance(tenantId, customerId));
     }
 
     /** Purchase statement of the calling customer, most recent first. */
@@ -194,7 +230,9 @@ public class FinanceService {
         return new BigDecimal(value.toString()).setScale(2);
     }
 
-    public record WalletView(UUID customerId, BigDecimal balance) {}
+    public record WalletView(UUID customerId, BigDecimal balance, BigDecimal cardBalance) {}
+
+    public record CardBalanceView(UUID customerId, BigDecimal walletBalance, BigDecimal cardBalance) {}
     public record InterestPolicyView(BigDecimal monthlyRate, Instant updatedAt) {}
     public record AdminSummary(long customerWallets, BigDecimal totalWalletBalance,
                                BigDecimal purchasePrincipal, BigDecimal interestRevenue) {}
