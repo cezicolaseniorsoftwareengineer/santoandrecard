@@ -1,6 +1,7 @@
 package com.cezicola.card.adapter.in.rest;
 
 import com.cezicola.card.application.FinanceService;
+import com.cezicola.card.application.IdempotentOperation;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -15,29 +16,40 @@ import java.math.BigDecimal;
 public class FinanceResource {
     private final FinanceService service;
     private final AuthenticatedCaller caller;
+    private final IdempotentOperation idempotent;
 
-    public FinanceResource(FinanceService service, AuthenticatedCaller caller) {
+    public FinanceResource(FinanceService service, AuthenticatedCaller caller, IdempotentOperation idempotent) {
         this.service = service;
         this.caller = caller;
+        this.idempotent = idempotent;
     }
 
     // Customer-facing operations act on the caller's own wallet. The customer
     // identifier comes from the access token, never from the request body, so one
     // customer cannot move another customer's money.
 
+    // Every operation that moves money requires a key. A client that timed out
+    // cannot tell a lost request from a lost response; the key is what lets it
+    // ask again without paying twice.
     @POST @Path("/wallet/top-ups")
     @RolesAllowed(Roles.CUSTOMER)
-    public Response topUp(@Valid TopUpRequest request) {
-        return Response.status(201).entity(service.topUp(caller.tenantId(), caller.customerId(), request.amount())).build();
+    public Response topUp(@HeaderParam("Idempotency-Key") @NotBlank @Size(max = 128) String key,
+                          @Valid TopUpRequest request) {
+        var wallet = idempotent.execute(caller.tenantId(), "wallet-top-up", key, request,
+                FinanceService.WalletView.class,
+                () -> service.topUp(caller.tenantId(), caller.customerId(), request.amount()));
+        return Response.status(201).entity(wallet).build();
     }
 
     /** Moves the customer's own money from the wallet onto the card. */
     @POST @Path("/wallet/card-loads")
     @RolesAllowed(Roles.CUSTOMER)
-    public Response loadCard(@Valid TopUpRequest request) {
-        return Response.status(201)
-                .entity(service.loadCard(caller.tenantId(), caller.customerId(), request.amount()))
-                .build();
+    public Response loadCard(@HeaderParam("Idempotency-Key") @NotBlank @Size(max = 128) String key,
+                             @Valid TopUpRequest request) {
+        var balances = idempotent.execute(caller.tenantId(), "card-load", key, request,
+                FinanceService.CardBalanceView.class,
+                () -> service.loadCard(caller.tenantId(), caller.customerId(), request.amount()));
+        return Response.status(201).entity(balances).build();
     }
 
     @GET @Path("/wallet")
@@ -60,9 +72,13 @@ public class FinanceResource {
 
     @POST @Path("/purchases")
     @RolesAllowed(Roles.CUSTOMER)
-    public Response purchase(@Valid PurchaseRequest request) {
-        return Response.status(201).entity(service.purchase(caller.tenantId(), caller.customerId(),
-                request.merchantCategory(), request.amount(), request.installments())).build();
+    public Response purchase(@HeaderParam("Idempotency-Key") @NotBlank @Size(max = 128) String key,
+                             @Valid PurchaseRequest request) {
+        var purchase = idempotent.execute(caller.tenantId(), "purchase", key, request,
+                FinanceService.PurchaseView.class,
+                () -> service.purchase(caller.tenantId(), caller.customerId(),
+                        request.merchantCategory(), request.amount(), request.installments()));
+        return Response.status(201).entity(purchase).build();
     }
 
     @PUT @Path("/admin/interest-policy")

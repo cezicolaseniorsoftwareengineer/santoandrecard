@@ -75,7 +75,9 @@ for appearance.
 | Micrometer + Prometheus | via Quarkus | Runtime and fault-tolerance metrics, alongside health endpoints and a published OpenAPI contract. |
 | JUnit 5 + RestAssured | 3.5.4 | Backend unit and API tests, including overlapping requests and a spent PIN budget. |
 | Vitest | 4.1 | Front-end tests, including a boot that must finish while the API never answers. |
-| GitHub Actions | 3 jobs | Boots the packaged application against real PostgreSQL on every push, because H2 in the fast profile once accepted a schema PostgreSQL rejected. |
+| GitHub Actions | 5 jobs | Boots the packaged application against real PostgreSQL on every push, because H2 in the fast profile once accepted a schema PostgreSQL rejected. |
+| OWASP Dependency-Check | CI job | Scans backend dependencies for known vulnerabilities, failing on CVSS 7 and above. Dependencies are the part of the attack surface nobody writes. |
+| CodeQL | CI job | Static analysis of the Java and TypeScript this repository writes, which dependency scanning cannot see. |
 
 ## What Redis is allowed to hold
 
@@ -131,6 +133,14 @@ reorder within a partition.
 
 After ten failed attempts an event stays unpublished and visible instead of
 being discarded: an event about money is an operator's problem, not garbage.
+
+Every operation that moves money requires an `Idempotency-Key`: top-up, card
+load and purchase, alongside card issuance. A client whose request timed out
+cannot tell a lost request from a lost response, and for a payment those are
+opposite situations — only the server knows which happened. A replayed key
+returns the original outcome; the same key replayed with a different body is a
+client defect and is refused with `409`. The key is scoped to its operation,
+because one key used on a top-up and on a purchase describes two intents.
 
 Idempotency holds under concurrency, not only for sequential retries. Checking for
 an existing key and then inserting cannot be atomic on its own, so the unique

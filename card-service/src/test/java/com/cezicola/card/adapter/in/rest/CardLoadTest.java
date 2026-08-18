@@ -25,7 +25,7 @@ class CardLoadTest {
     void movesMoneyFromTheWalletOntoTheCard() {
         topUp("500.00");
 
-        given().contentType(ContentType.JSON).body(amount("200.00"))
+        given().contentType(ContentType.JSON).header("Idempotency-Key", key()).body(amount("200.00"))
                 .when().post("/api/v1/wallet/card-loads")
                 .then().statusCode(201)
                 .body("walletBalance", equalTo(300.00f))
@@ -45,7 +45,7 @@ class CardLoadTest {
     void refusesToMoveMoreThanTheWalletHolds() {
         topUp("100.00");
 
-        given().contentType(ContentType.JSON).body(amount("100.01"))
+        given().contentType(ContentType.JSON).header("Idempotency-Key", key()).body(amount("100.01"))
                 .when().post("/api/v1/wallet/card-loads")
                 .then().statusCode(422);
 
@@ -55,11 +55,15 @@ class CardLoadTest {
     }
 
     private static void topUp(String value) {
-        given().contentType(ContentType.JSON).body(amount(value))
+        given().contentType(ContentType.JSON).header("Idempotency-Key", key()).body(amount(value))
                 .when().post("/api/v1/wallet/top-ups").then().statusCode(201);
     }
 
     private static String amount(String value) {
         return "{\"amount\":" + value + "}";
+    }
+
+    private static String key() {
+        return java.util.UUID.randomUUID().toString();
     }
 }

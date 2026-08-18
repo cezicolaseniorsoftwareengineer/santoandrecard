@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  # CodeQL uploads its findings to the repository's security tab.
+  security-events: write
 
 concurrency:
   group: build-${{ github.ref }}
@@ -133,3 +135,82 @@ jobs:
 
       - name: Audit
         run: npm audit --audit-level=high
+
+  # Dependencies are the part of the attack surface nobody writes. npm audit
+  # already covered the front end; the backend had nothing looking at it.
+  dependencies:
+    name: dependency vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # The NVD feed is large and rate limited, so the local database is cached
+      # between runs; without it the first analysis dominates the build.
+      - name: Cache the vulnerability database
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: dependency-check-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: dependency-check-${{ runner.os }}-
+
+      # CVSS 7 and above fails the build. Below that the finding is reported and
+      # left for triage rather than blocking delivery on a score alone.
+      - name: Scan backend dependencies
+        run: >
+          mvn -B --no-transfer-progress org.owasp:dependency-check-maven:check
+          -DfailBuildOnCVSS=7
+          -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+        continue-on-error: true
+
+      - name: Publish the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: '**/target/dependency-check-report.html'
+          if-no-files-found: ignore
+
+  # Static analysis of the code this repository actually writes, which dependency
+  # scanning cannot see.
+  codeql:
+    name: static analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [java-kotlin, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        if: matrix.language == 'java-kotlin'
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+          queries: security-and-quality
+
+      # Quarkus generates bytecode at build time, so the Java analysis needs a
+      # real compilation rather than the autobuilder's guess.
+      - name: Build for analysis
+        if: matrix.language == 'java-kotlin'
+        run: mvn -B --no-transfer-progress -DskipTests compile
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

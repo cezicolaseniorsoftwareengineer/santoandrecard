@@ -39,11 +39,11 @@ class FinanceResourceTest {
 
         given().contentType(ContentType.JSON)
                 .body("{\"amount\":200.00}")
-                .post("/api/v1/wallet/top-ups").then().statusCode(201).body("balance", equalTo(200.00f));
+                .header("Idempotency-Key", key()).post("/api/v1/wallet/top-ups").then().statusCode(201).body("balance", equalTo(200.00f));
 
         given().contentType(ContentType.JSON)
                 .body("{\"merchantCategory\":\"BAKERY\",\"amount\":100.00,\"installments\":2}")
-                .post("/api/v1/purchases").then().statusCode(201)
+                .header("Idempotency-Key", key()).post("/api/v1/purchases").then().statusCode(201)
                 .body("customerId", equalTo("c0000001-0000-0000-0000-000000000001"))
                 .body("remainingWalletBalance", equalTo(79.00f));
     }
@@ -55,7 +55,7 @@ class FinanceResourceTest {
             @Claim(key = "customer_id", value = "c0000002-0000-0000-0000-000000000002")})
     void fundsTheWalletOfTenantA() {
         given().contentType(ContentType.JSON).body("{\"amount\":100.00}")
-                .post("/api/v1/wallet/top-ups").then().statusCode(201);
+                .header("Idempotency-Key", key()).post("/api/v1/wallet/top-ups").then().statusCode(201);
     }
 
     @Test
@@ -66,7 +66,7 @@ class FinanceResourceTest {
     void cannotSpendTheSameCustomerIdentifierAcrossTenants() {
         given().contentType(ContentType.JSON)
                 .body("{\"merchantCategory\":\"SHOPPING\",\"amount\":10.00,\"installments\":1}")
-                .post("/api/v1/purchases").then().statusCode(422).body("code", equalTo("INSUFFICIENT_FUNDS"));
+                .header("Idempotency-Key", key()).post("/api/v1/purchases").then().statusCode(422).body("code", equalTo("INSUFFICIENT_FUNDS"));
     }
 
     @Test
@@ -76,11 +76,11 @@ class FinanceResourceTest {
             @Claim(key = "customer_id", value = "c0000003-0000-0000-0000-000000000003")})
     void failsClosedWhenMerchantAuthorizationNetworkIsUnavailable() {
         given().contentType(ContentType.JSON).body("{\"amount\":100.00}")
-                .post("/api/v1/wallet/top-ups").then().statusCode(201);
+                .header("Idempotency-Key", key()).post("/api/v1/wallet/top-ups").then().statusCode(201);
 
         given().contentType(ContentType.JSON)
                 .body("{\"merchantCategory\":\"NETWORK_FAILURE\",\"amount\":10.00,\"installments\":1}")
-                .post("/api/v1/purchases").then().statusCode(503)
+                .header("Idempotency-Key", key()).post("/api/v1/purchases").then().statusCode(503)
                 .header("Retry-After", "5")
                 .body("code", equalTo("MERCHANT_AUTHORIZATION_UNAVAILABLE"));
     }
@@ -89,7 +89,7 @@ class FinanceResourceTest {
     void rejectsUnauthenticatedAccess() {
         given().get("/api/v1/admin/summary").then().statusCode(401);
         given().contentType(ContentType.JSON).body("{\"amount\":10.00}")
-                .post("/api/v1/wallet/top-ups").then().statusCode(401);
+                .header("Idempotency-Key", key()).post("/api/v1/wallet/top-ups").then().statusCode(401);
     }
 
     @Test
@@ -108,7 +108,7 @@ class FinanceResourceTest {
     @OidcSecurity(claims = {@Claim(key = "tenant_id", value = TENANT_A)})
     void refusesAuthenticatedTokenWithoutCustomerClaim() {
         given().contentType(ContentType.JSON).body("{\"amount\":10.00}")
-                .post("/api/v1/wallet/top-ups").then().statusCode(403)
+                .header("Idempotency-Key", key()).post("/api/v1/wallet/top-ups").then().statusCode(403)
                 .body("code", equalTo("IDENTITY_CLAIM_MISSING"));
     }
 
@@ -117,5 +117,10 @@ class FinanceResourceTest {
     @OidcSecurity(claims = {@Claim(key = "tenant_id", value = TENANT_A)})
     void keepsOperationalEndpointsReachable() {
         given().get("/q/health/ready").then().statusCode(200);
+    }
+
+    /** A fresh key per call: these tests exercise distinct operations, not replays. */
+    private static String key() {
+        return java.util.UUID.randomUUID().toString();
     }
 }
