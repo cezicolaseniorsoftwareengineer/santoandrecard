@@ -165,9 +165,13 @@ jobs:
       - name: Scan dependencies
         uses: google/osv-scanner-action/osv-scanner-action@v2.2.4
         with:
+          # Recursive over the repository: the scanner finds pom.xml and
+          # package-lock.json on its own. Naming an extractor explicitly is how
+          # the previous attempt failed — the name it wanted is not the one the
+          # ecosystem is called.
           scan-args: |-
-            --lockfile=maven:card-service/pom.xml
-            --lockfile=web-app/package-lock.json
+            --recursive
+            ./
 
       - name: Publish the resolved tree
         if: always()
