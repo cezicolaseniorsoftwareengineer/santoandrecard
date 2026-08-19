@@ -1,0 +1,40 @@
+<section class="page-heading">
+  <div><p class="eyebrow">Compra com parcelamento</p><h2>Nova compra</h2><p>O cálculo de juros é feito pelo serviço de cartões, não pelo navegador.</p></div>
+  <div class="available-pill">Disponível no cartão <strong>{{ store.cardBalance() | currency:'BRL' }}</strong></div>
+</section>
+<section class="simulator-grid">
+  <form class="panel form-panel" (ngSubmit)="simulated.emit(intent())">
+    <label for="category">Categoria do estabelecimento</label>
+    <select id="category" name="category" [ngModel]="category()" (ngModelChange)="category.set($event)">
+      @for (item of categories; track item) { <option [value]="item">{{ item }}</option> }
+    </select>
+    <label for="amount">Valor da compra</label>
+    <div class="money-input"><span>R$</span><input id="amount" name="amount" type="text" inputmode="numeric" appBrl
+           [ngModel]="amount()" (ngModelChange)="amount.set($event)" required></div>
+    <label for="installments">Parcelas</label>
+    <select id="installments" name="installments" [ngModel]="installments()" (ngModelChange)="installments.set($event)">
+      @for (n of installmentOptions; track n) { <option [value]="n">{{ n }}x@if (n === 1) { · à vista, sem juros }</option> }
+    </select>
+    <small>À vista não tem juros. Parcelado usa a taxa vigente@if (store.monthlyRate() !== null) { de <strong>{{ store.monthlyRate()! | percent:'1.2-4' }}</strong> ao mês }, definida pela administração do banco.</small>
+    <button class="primary full" type="submit" [disabled]="busy()">Calcular condições</button>
+  </form>
+  <aside class="simulation-result" [class.empty]="!quote()">
+    @if (quote(); as result) {
+      <p class="eyebrow light">Condições retornadas pela API</p>
+      <h3>{{ result.installments }}x de</h3><strong>{{ result.installmentAmount | currency:'BRL' }}</strong><hr>
+      <div><span>Compra</span><b>{{ result.principal | currency:'BRL' }}</b></div>
+      <div><span>Juros</span><b>{{ result.interest | currency:'BRL' }}</b></div>
+      @if (result.installments > 1) {
+        <div><span>Taxa aplicada</span><b>{{ result.monthlyRate | percent:'1.2-4' }} a.m.</b></div>
+      }
+      @if (result.lastInstallmentAmount !== result.installmentAmount) {
+        <div><span>Última parcela</span><b>{{ result.lastInstallmentAmount | currency:'BRL' }}</b></div>
+      }
+      <div><span>Total</span><b>{{ result.total | currency:'BRL' }}</b></div>
+      <p class="disclaimer">O valor total é debitado do saldo do cartão no momento da confirmação.</p>
+      <button class="white-button" (click)="confirmed.emit(intent())" [disabled]="busy()">Confirmar compra</button>
+    } @else {
+      <span class="result-icon">◇</span><h3>O resultado aparece aqui</h3><p>Preencha os dados para ver as condições.</p>
+    }
+  </aside>
+</section>

@@ -1,0 +1,67 @@
+<section class="hero-row customer">
+  <div class="balances">
+    <div class="balance">
+      <p class="eyebrow light">Saldo em carteira</p>
+      <div class="balance-line">
+        <h2>{{ balanceVisible() ? (store.balance() | currency:'BRL') : '••••••' }}</h2>
+        <button class="eye" type="button" (click)="balanceVisible.set(!balanceVisible())"
+                [attr.aria-label]="balanceVisible() ? 'Ocultar saldo' : 'Mostrar saldo'"
+                [attr.aria-pressed]="!balanceVisible()">
+          @if (balanceVisible()) {
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.6 12S5.5 5 12 5s10.4 7 10.4 7-3.9 7-10.4 7S1.6 12 1.6 12Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+          } @else {
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.6 12S5.5 5 12 5s10.4 7 10.4 7-3.9 7-10.4 7S1.6 12 1.6 12Z"/><circle cx="12" cy="12" r="3.2"/><line x1="3.5" y1="20.5" x2="20.5" y2="3.5"/></svg>
+          }
+        </button>
+      </div>
+    </div>
+    <div class="balance">
+      <p class="eyebrow light">Disponível para compra no cartão</p>
+      <h2 class="secondary-balance">{{ balanceVisible() ? (store.cardBalance() | currency:'BRL') : '••••••' }}</h2>
+    </div>
+  </div>
+  <div class="hero-forms">
+    <form class="quick-deposit" (ngSubmit)="deposited.emit(depositAmount())">
+      <label for="deposit">Adicionar saldo</label>
+      <div><span>R$</span><input id="deposit" name="deposit" type="text" inputmode="numeric" appBrl
+             [ngModel]="depositAmount()" (ngModelChange)="depositAmount.set($event)"><button type="submit" [disabled]="busy()">Adicionar</button></div>
+    </form>
+    <form class="quick-deposit" (ngSubmit)="transferred.emit(transferAmount())">
+      <label for="transfer">Transferir para o cartão</label>
+      <div><span>R$</span><input id="transfer" name="transfer" type="text" inputmode="numeric" appBrl
+             [ngModel]="transferAmount()" (ngModelChange)="transferAmount.set($event)"><button type="submit" [disabled]="busy()">Transferir</button></div>
+    </form>
+  </div>
+</section>
+
+<section class="dashboard-grid">
+  @if (store.card(); as card) {
+    <app-credit-card [card]="card" [holderName]="holderName()"
+                     [revealedNumber]="store.revealedNumber()" (opened)="cardOpened.emit()" />
+    <article class="limit-card">
+      <p>Limite disponível</p><strong>{{ store.availableLimit() | currency:'BRL' }}</strong>
+      <div class="progress"><i [style.width.%]="committedShare(card.creditLimit)"></i></div>
+      <div><span>Comprometido<br><strong>{{ store.committed() | currency:'BRL' }}</strong></span><span>Limite total<br><strong>{{ card.creditLimit | currency:'BRL' }}</strong></span></div>
+      <button class="primary" (click)="shoppingRequested.emit()">Fazer uma compra</button>
+    </article>
+  } @else {
+    <article class="issue-card">
+      <p class="eyebrow">Disponível 24 horas</p>
+      <h3>Peça seu Santo André Card Platinum</h3>
+      <p>Emissão imediata, a qualquer hora, direto pela sua conta. O limite é definido pela política do banco.</p>
+      <button class="primary full" type="button" (click)="cardIssued.emit()" [disabled]="busy()">Gerar meu cartão</button>
+    </article>
+  }
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div><p class="eyebrow">Últimas compras</p><h2>Movimentações recentes</h2></div>
+    <button class="text-button" (click)="statementRequested.emit()">Ver extrato completo →</button>
+  </div>
+  <div class="transaction-list">
+    @for (item of store.purchases().slice(0, 3); track item.id) {
+      <div class="transaction"><span class="transaction-icon">↑</span><span><strong>{{ item.merchantCategory }}</strong><small>{{ item.createdAt | date:'dd MMM':'':'pt-BR' }} · {{ item.installments }}x</small></span><strong>{{ -item.total | currency:'BRL' }}</strong></div>
+    } @empty { <p class="demo-hint">Nenhuma compra registrada ainda.</p> }
+  </div>
+</section>

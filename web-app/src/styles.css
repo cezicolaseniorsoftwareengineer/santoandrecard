@@ -80,3 +80,675 @@ img { max-width: 100%; }
     transition-duration: .01ms !important;
   }
 }
+
+/*
+ * The interface stylesheet is global rather than scoped to a component.
+ *
+ * The screens are built from many small components now, and every one of them
+ * draws from the same vocabulary: one panel, one hairline, one accent. Scoping
+ * these rules to whichever component happened to declare them would either
+ * duplicate the vocabulary per component or force the encapsulation off, and
+ * both are worse than saying plainly that this is the design system.
+ */
+/*
+ * Banco Santo André — interface.
+ *
+ * Flat surfaces, one hairline for separation, no shadows anywhere. Hierarchy is
+ * carried by size, weight and whitespace; colour is reserved for meaning. The
+ * card face is the only saturated object on the screen, which is what makes it
+ * read as the product.
+ */
+
+app-root { display: block; min-height: 100vh; }
+
+/* -------------------------------------------------------------------- splash */
+
+/* Covers the whole viewport while the session is restored. The mark is reversed
+   to white on black: at this moment the product has nothing to say yet, so it
+   says only who it is. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: #000;
+  opacity: 1;
+  transition: opacity .4s ease;
+}
+.splash--leaving { opacity: 0; pointer-events: none; }
+
+.splash img {
+  width: min(232px, 56vw);
+  filter: brightness(0) invert(1);
+  animation: splash-mark .7s ease-out both;
+}
+@keyframes splash-mark {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The surface behind the splash while it fades, so nothing shows through. */
+.boot-shell { min-height: 100vh; background: #000; }
+
+/* ---------------------------------------------------------------- primitives */
+
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.011em; color: var(--ink); }
+h1 { font-size: 26px; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+
+.eyebrow {
+  margin: 0 0 var(--s2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.eyebrow.light { color: rgba(255, 255, 255, .58); }
+
+p { line-height: 1.6; }
+
+button.primary, button.secondary, button.white-button {
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  padding: 11px var(--s5);
+  font-weight: 550;
+  font-size: 14px;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+button.primary { background: var(--navy-700); color: #fff; }
+button.primary:hover:not(:disabled) { background: var(--navy-800); }
+button.secondary { background: #fff; border-color: var(--line-strong); color: var(--ink); }
+button.secondary:hover:not(:disabled) { border-color: var(--muted); }
+button.white-button { background: #fff; color: var(--navy-700); }
+button.white-button:hover:not(:disabled) { background: var(--navy-050); }
+button.full { width: 100%; }
+
+.text-button {
+  background: none; border: 0; padding: 0;
+  color: var(--navy-700); font-weight: 550; font-size: 13.5px;
+}
+.text-button:hover { text-decoration: underline; }
+.text-button.light { color: rgba(255, 255, 255, .82); }
+.text-button.light:hover { color: #fff; }
+
+.icon-button {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  width: 32px; height: 32px;
+  border-radius: var(--radius-sm);
+  display: grid; place-items: center;
+  font-size: 14px;
+}
+.icon-button:hover { border-color: var(--muted); }
+
+label {
+  display: block;
+  margin: var(--s4) 0 var(--s2);
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink-soft);
+}
+
+input, select {
+  width: 100%;
+  padding: 10px var(--s3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  /* The reset gives form controls `color: inherit`, which on the navy hero made
+     the deposit field white text on its own white background — legible only
+     while selected. A control that declares its background declares its
+     foreground. */
+  color: var(--ink);
+  transition: border-color .12s ease;
+}
+input:hover, select:hover { border-color: var(--muted); }
+input:focus, select:focus { border-color: var(--navy-700); outline: none; }
+
+small { display: block; margin-top: var(--s2); font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+/* ------------------------------------------------------------------- sign in */
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--surface);
+}
+
+.login-story {
+  padding: 8vh clamp(32px, 6vw, 88px);
+  display: flex; flex-direction: column; justify-content: center;
+  color: #fff;
+  background: var(--navy-800);
+}
+.login-story h1 {
+  color: #fff;
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.25;
+  font-weight: 600;
+  margin-bottom: var(--s4);
+}
+.lead { max-width: 44ch; color: rgba(255, 255, 255, .7); margin: 0 0 var(--s7); font-size: 15px; }
+
+.brand-logo { width: 150px; }
+.brand-logo--hero { width: 210px; margin-bottom: var(--s7); filter: brightness(0) invert(1); }
+
+.security-note {
+  display: flex; gap: var(--s3); align-items: flex-start;
+  max-width: 44ch;
+  padding-top: var(--s4);
+  border-top: 1px solid rgba(255, 255, 255, .18);
+  font-size: 13px; line-height: 1.55;
+  color: rgba(255, 255, 255, .7);
+}
+.security-note span[aria-hidden] { color: var(--gold-300); }
+.security-note strong { color: #fff; font-weight: 550; }
+
+.login-panel { display: grid; place-items: center; padding: var(--s6); }
+.login-card { width: min(380px, 100%); }
+.login-card h2 { margin-bottom: var(--s3); font-size: 24px; }
+.login-card p { color: var(--ink-soft); margin: 0 0 var(--s6); font-size: 14.5px; }
+.mobile-brand { display: none; }
+
+.demo-hint {
+  margin-top: var(--s5) !important;
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  font-size: 12.5px !important;
+  color: var(--muted) !important;
+}
+
+/* -------------------------------------------------------------- application */
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  background: var(--canvas);
+}
+
+/* The mark is navy, green and gold on white. Keeping the sidebar light lets it
+   appear in its own colours instead of being flattened to a white silhouette. */
+.sidebar {
+  position: sticky; top: 0;
+  height: 100vh;
+  display: flex; flex-direction: column;
+  gap: var(--s6);
+  padding: var(--s5) var(--s4);
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+.sidebar .brand-logo { width: 142px; margin-left: var(--s2); }
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.sidebar nav button {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: 10px var(--s3);
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 14px; font-weight: 500;
+  text-align: left;
+  transition: background .12s ease, color .12s ease;
+}
+.sidebar nav button span { width: 16px; color: var(--faint); font-size: 13px; }
+.sidebar nav button:hover { background: var(--canvas); color: var(--ink); }
+.sidebar nav button.active { background: var(--navy-050); color: var(--navy-700); font-weight: 600; }
+.sidebar nav button.active span { color: var(--navy-700); }
+
+.sidebar-bottom {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center; gap: var(--s3);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+.sidebar-bottom > span:nth-child(2) { display: flex; flex-direction: column; min-width: 0; }
+.sidebar-bottom strong { font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
+.sidebar-bottom small { color: var(--muted); font-size: 11.5px; margin: 0; }
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--navy-100);
+  color: var(--navy-700); font-weight: 600; font-size: 14px;
+}
+
+.content {
+  padding: var(--s6) clamp(20px, 3vw, 44px) var(--s8);
+  display: flex; flex-direction: column; gap: var(--s4);
+  min-width: 0;
+}
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s4); flex-wrap: wrap;
+  margin-bottom: var(--s1);
+}
+.status {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  font-size: 12.5px; color: var(--muted);
+}
+.status span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--positive);
+}
+
+/* -------------------------------------------------------------------- panels */
+
+.panel, .metric, .limit-card, .issue-card, .available-pill {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.panel { padding: var(--s5); }
+.panel-heading {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--s4); flex-wrap: wrap;
+  margin-bottom: var(--s4);
+}
+.page-heading {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--s4); flex-wrap: wrap;
+}
+.page-heading p { color: var(--muted); margin: var(--s2) 0 0; font-size: 14px; }
+
+.available-pill {
+  padding: var(--s3) var(--s4);
+  font-size: 12px; color: var(--muted);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.available-pill strong { font-size: 17px; color: var(--ink); font-weight: 600; }
+
+/* The balance block. A single flat navy surface anchors the page; everything
+   else stays white so the eye lands here first. */
+.hero-row {
+  border-radius: var(--radius-md);
+  padding: var(--s5) var(--s6);
+  color: #fff;
+  background: var(--navy-800);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s6); flex-wrap: wrap;
+}
+.hero-row h2 { color: #fff; }
+.hero-row p { color: rgba(255, 255, 255, .7); margin: var(--s2) 0 0; font-size: 14px; }
+.hero-row.customer h2 {
+  font-size: clamp(30px, 3.6vw, 40px);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  margin: var(--s1) 0 var(--s2);
+}
+.hero-date { text-align: right; font-size: 13px; color: rgba(255, 255, 255, .7); }
+
+.balances { display: flex; gap: var(--s6); flex-wrap: wrap; }
+.balance-line { display: flex; align-items: center; gap: var(--s3); }
+.hero-row.customer .secondary-balance { font-size: clamp(20px, 2.2vw, 26px); color: rgba(255, 255, 255, .82); }
+
+/* The toggle is the icon, so it carries its meaning in aria-label rather than
+   in visible text. */
+.eye {
+  display: grid; place-items: center;
+  width: 34px; height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, .82);
+  cursor: pointer;
+  transition: border-color .12s ease, color .12s ease;
+}
+.eye:hover { border-color: rgba(255, 255, 255, .6); color: #fff; }
+.eye svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+
+.hero-forms { display: flex; gap: var(--s4); flex-wrap: wrap; }
+
+.quick-deposit { min-width: 244px; }
+.quick-deposit label { color: rgba(255, 255, 255, .7); margin-top: 0; font-size: 12px; }
+/* On the navy surface the field stays navy: a white box would punch a hole in
+   the block. The amount is therefore white, and the contrast holds. */
+.quick-deposit > div {
+  display: flex; align-items: center; gap: var(--s2);
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: var(--radius-sm);
+  padding: 4px 4px 4px var(--s3);
+}
+.quick-deposit > div:focus-within { border-color: rgba(255, 255, 255, .7); }
+.quick-deposit span { color: rgba(255, 255, 255, .7); font-size: 13px; }
+.quick-deposit input { background: transparent; color: #fff; }
+.quick-deposit input::selection { background: rgba(255, 255, 255, .3); color: #fff; }
+.quick-deposit input { border: 0; padding: 6px 0; font-variant-numeric: tabular-nums; font-weight: 550; }
+.quick-deposit input:hover, .quick-deposit input:focus { border: 0; }
+.quick-deposit input:focus { border: 0; }
+.quick-deposit button {
+  border: 0; border-radius: 6px;
+  padding: 9px var(--s4);
+  background: var(--navy-700); color: #fff;
+  font-weight: 550; font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------- metrics */
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--s4);
+}
+.metric {
+  padding: var(--s5);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.metric > span { font-size: 12.5px; color: var(--muted); }
+.metric strong { font-size: 25px; font-weight: 600; letter-spacing: -.015em; }
+.metric small { margin: 0; font-size: 12px; color: var(--faint); }
+
+/* --------------------------------------------------------------- credit card */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--s4);
+  align-items: stretch;
+}
+
+/* An ID-1 card is 85.60 x 53.98 mm. Holding that ratio is what makes the
+   rendering read as a card rather than as a wide banner, and the width is capped
+   so it never grows past a plausible physical size on a large screen. */
+.card-slot { display: flex; flex-direction: column; gap: var(--s2); align-items: flex-start; }
+
+.credit-card {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 85.6 / 53.98;
+  border-radius: 14px;
+  padding: clamp(var(--s3), 4.2%, var(--s5));
+  color: #fff;
+  display: flex; flex-direction: column; justify-content: space-between;
+  background: var(--navy-800);
+  text-align: left;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  /* The number sizes against the card, not the viewport, so it stays in
+     proportion whatever the surrounding grid does. */
+  container-type: inline-size;
+}
+.credit-card:focus-visible { outline: 2px solid var(--navy-700); outline-offset: 3px; }
+.card-hint { margin: 0; font-size: 12.5px; color: var(--muted); max-width: 420px; }
+.card-top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .6);
+}
+.card-top span:first-child {
+  font-size: 15px; letter-spacing: 0; text-transform: none;
+  font-weight: 550; color: #fff;
+}
+
+.chip {
+  position: relative;
+  width: 40px; height: 30px;
+  border-radius: 5px;
+  background: var(--gold-500);
+}
+.chip::before {
+  content: "";
+  position: absolute; inset: 5px 4px;
+  border: 1px solid rgba(0, 0, 0, .22);
+  border-radius: 1px;
+}
+/* Contactless: concentric arcs clipped to a wedge. */
+.chip::after {
+  content: "";
+  position: absolute;
+  left: 54px; top: 4px;
+  width: 22px; height: 22px;
+  background:
+    radial-gradient(circle at 0 50%, transparent 0 5px, rgba(255, 255, 255, .5) 5px 6.2px, transparent 6.2px),
+    radial-gradient(circle at 0 50%, transparent 0 10px, rgba(255, 255, 255, .42) 10px 11.2px, transparent 11.2px),
+    radial-gradient(circle at 0 50%, transparent 0 15px, rgba(255, 255, 255, .34) 15px 16.2px, transparent 16.2px);
+  clip-path: polygon(0 16%, 100% 0, 100% 100%, 0 84%);
+}
+
+.credit-card p {
+  font-size: clamp(14px, 4.4cqw, 20px);
+  letter-spacing: .12em;
+  margin: 0;
+  white-space: nowrap;
+}
+.card-number { font-variant-numeric: tabular-nums; }
+.card-bottom {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .78);
+}
+.card-bottom strong { color: rgba(255, 255, 255, .6); font-weight: 500; }
+
+/* The Platinum product reads as black. Flat, like the rest of the interface:
+   the tier is carried by the colour alone, not by a gradient or a sheen. */
+.credit-card--platinum { background: #0b0b0c; }
+
+/* Issuance stands where the card will appear, so the empty state is an offer
+   rather than a notice that something is missing. */
+.issue-card {
+  padding: var(--s5);
+  min-height: 196px;
+  display: flex; flex-direction: column; justify-content: center; gap: var(--s3);
+}
+.issue-card h3 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.015em; }
+.issue-card p { margin: 0; font-size: 13px; color: var(--muted); }
+.issue-card button { margin-top: var(--s2); }
+
+.limit-card {
+  padding: var(--s5);
+  display: flex; flex-direction: column; gap: var(--s3);
+}
+.limit-card > p { margin: 0; font-size: 12.5px; color: var(--muted); }
+.limit-card > strong { font-size: 28px; font-weight: 600; letter-spacing: -.015em; }
+.progress {
+  height: 6px; border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.progress i { display: block; height: 100%; background: var(--navy-700); }
+.limit-card > div {
+  display: flex; justify-content: space-between; gap: var(--s4);
+  font-size: 12px; color: var(--muted);
+}
+.limit-card > div strong { display: block; margin-top: 2px; font-size: 14px; color: var(--ink); font-weight: 550; }
+.limit-card .primary { margin-top: auto; }
+
+/* --------------------------------------------------------------- transactions */
+
+.transaction-list { display: flex; flex-direction: column; }
+.transaction {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center; gap: var(--s4);
+  padding: var(--s4) 0;
+  border-bottom: 1px solid var(--line);
+}
+.transaction:first-child { padding-top: 0; }
+.transaction:last-child { border-bottom: 0; padding-bottom: 0; }
+.transaction-icon {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--canvas);
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.transaction > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.transaction strong { font-size: 14px; font-weight: 550; }
+.transaction small { margin: 0; font-size: 12.5px; }
+.transaction > strong:last-child { font-size: 14.5px; white-space: nowrap; font-weight: 550; }
+.transaction > strong.positive { color: var(--positive); }
+
+/* ----------------------------------------------------------------- simulator */
+
+.simulator-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+.form-panel label:first-of-type { margin-top: 0; }
+.money-input {
+  display: flex; align-items: center; gap: var(--s2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--s3);
+  background: #fff;
+}
+.money-input:focus-within { border-color: var(--navy-700); }
+.money-input span { color: var(--muted); font-size: 13px; }
+.money-input input { border: 0; padding-left: 0; font-variant-numeric: tabular-nums; font-weight: 550; }
+.money-input input:focus { border: 0; }
+.form-panel .primary { margin-top: var(--s5); }
+
+.simulation-result {
+  border-radius: var(--radius-md);
+  padding: var(--s5);
+  color: #fff;
+  min-height: 100%;
+  background: var(--navy-800);
+}
+.simulation-result h3 { color: rgba(255, 255, 255, .68); font-size: 13px; font-weight: 500; }
+.simulation-result > strong {
+  display: block;
+  font-size: 34px; font-weight: 600; letter-spacing: -.02em;
+  margin-top: var(--s1);
+}
+.simulation-result hr {
+  border: 0; height: 1px;
+  background: rgba(255, 255, 255, .16);
+  margin: var(--s5) 0 var(--s3);
+}
+.simulation-result > div {
+  display: flex; justify-content: space-between; gap: var(--s4);
+  padding: var(--s2) 0;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, .68);
+}
+.simulation-result > div b { color: #fff; font-weight: 550; }
+.simulation-result > div:last-of-type {
+  margin-top: var(--s1); padding-top: var(--s3);
+  border-top: 1px solid rgba(255, 255, 255, .16);
+}
+.simulation-result > div:last-of-type b { font-size: 15px; }
+.disclaimer { font-size: 12.5px; color: rgba(255, 255, 255, .55); margin: var(--s4) 0 var(--s5); }
+.simulation-result .white-button { width: 100%; }
+
+.simulation-result.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.simulation-result.empty h3 { color: var(--ink); font-size: 16px; font-weight: 600; margin: var(--s3) 0 var(--s2); }
+.simulation-result.empty p { margin: 0; font-size: 13.5px; }
+.result-icon {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--canvas);
+  color: var(--faint);
+  font-size: 17px;
+}
+
+/* --------------------------------------------------------------------- toast */
+
+.toast {
+  position: fixed;
+  left: 50%; bottom: var(--s5);
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: min(480px, calc(100vw - 32px));
+  padding: var(--s3) var(--s5);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: #fff;
+  font-size: 13.5px;
+}
+
+/* --------------------------------------------------------------- responsive */
+
+@media (max-width: 1080px) {
+  .login-shell { grid-template-columns: 1fr; }
+  .login-story { display: none; }
+  .mobile-brand { display: block; font-size: 18px; font-weight: 600; color: var(--navy-700); margin-bottom: var(--s5); }
+  .simulator-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 860px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar {
+    position: static; height: auto;
+    flex-direction: row; align-items: center; flex-wrap: wrap;
+    gap: var(--s4);
+    padding: var(--s3) var(--s4);
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .sidebar .brand-logo { width: 120px; margin-left: 0; }
+  .sidebar nav { flex-direction: row; flex-wrap: wrap; flex: 1 1 100%; }
+  .sidebar-bottom { border-top: 0; padding-top: 0; margin-left: auto; }
+  .content { padding: var(--s5) var(--s4) var(--s7); }
+  .hero-row, .hero-row.customer { flex-direction: column; align-items: stretch; }
+  .quick-deposit { min-width: 0; }
+  .hero-date { text-align: left; }
+}
+
+/* ------------------------------------------------------------------ PIN */
+
+.pin-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(11, 18, 32, .55);
+}
+.pin-dialog {
+  position: fixed; z-index: 91;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(360px, calc(100vw - var(--s5) * 2));
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.pin-dialog h3 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.015em; }
+.pin-dialog > p { margin: var(--s2) 0 var(--s4); font-size: 13px; color: var(--muted); }
+.pin-dialog label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: var(--s2); }
+/* Four digits, spaced out: the field should look like a PIN pad, not a password. */
+.pin-dialog input {
+  font-size: 24px;
+  letter-spacing: .5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.pin-actions { display: flex; gap: var(--s3); margin-top: var(--s4); }
+.pin-actions button { flex: 1; }
+
+/* ------------------------------------------------- responsive, small screens */
+
+@media (max-width: 560px) {
+  .content { padding: var(--s4) var(--s3) var(--s6); }
+  .hero-row, .hero-row.customer { padding: var(--s4); }
+  .balances { gap: var(--s4); flex-direction: column; }
+  .hero-forms { flex-direction: column; gap: var(--s3); }
+  .quick-deposit { width: 100%; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .credit-card, .card-hint { max-width: none; }
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .topbar { flex-direction: column; align-items: flex-start; gap: var(--s2); }
+  .transaction { gap: var(--s2); }
+  .sidebar nav button { flex: 1 1 auto; }
+}
+
+/* A phone in landscape is short, not narrow: the splash mark would otherwise
+   take the whole viewport height. */
+@media (max-height: 420px) {
+  .splash img { width: min(160px, 40vw); }
+}

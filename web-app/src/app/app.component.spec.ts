@@ -8,8 +8,8 @@ import { Session } from './bank.models';
 
 class StubAuthService {
   session = () => this.current;
-  constructor(private current: Session | null = null) {}
-  restore = async () => this.current !== null;
+  constructor(protected current: Session | null = null) {}
+  restore = async (): Promise<boolean> => this.current !== null;
   login = async () => undefined;
   logout = () => undefined;
   token = () => null;
@@ -113,6 +113,35 @@ describe('AppComponent', () => {
 
     expect(fixture.componentInstance.starting()).toBe(false);
     expect(fixture.nativeElement.textContent).toContain('Saldo em carteira');
+  }, 15000);
+
+  it('finishes the boot when restoring the session throws', async () => {
+    // A failure, not a delay: a malformed token, a provider answering something
+    // unexpected, storage that refuses to be read. The deadline does not cover
+    // this — a rejection propagates through the race — and the cost of not
+    // covering it is a splash screen that never leaves.
+    class ThrowingAuthService extends StubAuthService {
+      override restore = async (): Promise<boolean> => {
+        throw new Error('the token exchange failed');
+      };
+    }
+
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: new ThrowingAuthService(null) }
+      ]
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AppComponent);
+    await fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.starting()).toBe(false);
+    // Signed out rather than stuck: the login screen is a usable outcome.
+    expect(fixture.nativeElement.textContent).toContain('Acesse sua conta');
   }, 15000);
 
   it('shows consolidated figures and no wallet actions for an administrator', async () => {

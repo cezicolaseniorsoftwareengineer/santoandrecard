@@ -1,19 +1,33 @@
-import { CommonModule, CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { AuthService } from './auth.service';
-import { BrlInputDirective } from './brl-input.directive';
-import { BankStore, MAX_INSTALLMENTS } from './bank-store.service';
-import { MerchantCategory, PurchaseQuote } from './bank.models';
+import { BankStore } from './bank-store.service';
+import { PurchaseQuote } from './bank.models';
+import { AdminDashboardComponent } from './ui/admin-dashboard.component';
+import { AppSidebarComponent, CustomerView } from './ui/app-sidebar.component';
+import { CustomerOverviewComponent } from './ui/customer-overview.component';
+import { LoginComponent } from './ui/login.component';
+import { PinDialogComponent, PinPurpose } from './ui/pin-dialog.component';
+import { PurchaseIntent, PurchaseSimulatorComponent } from './ui/purchase-simulator.component';
+import { SplashComponent } from './ui/splash.component';
+import { StatementComponent } from './ui/statement.component';
+import { ToastComponent } from './ui/toast.component';
 
-type CustomerView = 'overview' | 'shopping' | 'statement';
-
+/**
+ * The shell.
+ *
+ * <p>It owns three things and delegates the rest: which screen is on, the boot
+ * sequence, and the single place an API call becomes either a busy cursor or a
+ * message. The screens read from {@link BankStore} and report what the user
+ * asked for; none of them decides what a failure means.
+ */
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, PercentPipe, BrlInputDirective],
+  imports: [
+    SplashComponent, LoginComponent, ToastComponent, PinDialogComponent, AppSidebarComponent,
+    AdminDashboardComponent, CustomerOverviewComponent, PurchaseSimulatorComponent, StatementComponent
+  ],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AppComponent implements OnInit {
@@ -21,33 +35,15 @@ export class AppComponent implements OnInit {
   private readonly auth = inject(AuthService);
 
   readonly view = signal<CustomerView>('overview');
-  readonly balanceVisible = signal(true);
   readonly toast = signal('');
   readonly quote = signal<PurchaseQuote | null>(null);
   readonly starting = signal(true);
   /** Kept mounted through the fade so the black surface does not blink away. */
   readonly splash = signal(true);
   readonly busy = signal(false);
+  readonly pinPrompt = signal<PinPurpose | 'none'>('none');
   readonly session = this.store.session;
   readonly isAdmin = computed(() => this.session()?.role === 'ADMIN');
-
-  depositAmount = 250;
-  transferAmount = 100;
-  pin = '';
-  readonly pinPrompt = signal<'none' | 'set' | 'reveal'>('none');
-  category: MerchantCategory = 'Shopping';
-  purchaseAmount = 600;
-  installments = 3;
-  monthlyRate = 0.0199;
-  readonly categories: readonly MerchantCategory[] = ['Shopping', 'Padaria', 'Açougue', 'Restaurante', 'Farmácia'];
-
-  /**
-   * Every count the product offers, from cash up to the ceiling. Derived from the
-   * same constant the store validates against, so the options offered and the
-   * options accepted cannot drift apart.
-   */
-  readonly installmentOptions: readonly number[] =
-    Array.from({ length: MAX_INSTALLMENTS }, (_, index) => index + 1);
 
   /** Long enough for the mark to register, short enough not to be a delay. */
   private static readonly SPLASH_MS = 1100;
@@ -68,18 +64,36 @@ export class AppComponent implements OnInit {
     // Whichever comes first: the session and its data, or the deadline. Losing
     // the race still yields a usable interface — the login screen if the session
     // never arrived, the dashboard filling in behind its loading state if it did.
-    await Promise.race([this.startSession(), this.after(AppComponent.BOOT_DEADLINE_MS)]);
+    //
+    // The deadline bounds a slow start; the catch bounds a failed one. Without
+    // it a rejection anywhere in the restore chain rejects the race, abandons
+    // the rest of this method and leaves the splash mounted for good — the same
+    // dead end the deadline exists to prevent, reached by the other road.
+    await Promise.race([this.startSession(), this.after(AppComponent.BOOT_DEADLINE_MS)])
+      .catch(() => this.showToast('Não foi possível restaurar a sessão. Entre novamente.'));
 
     // Holding for the minimum means the splash never flashes on a fast start.
     await shown;
-    this.starting.set(false);
-    window.setTimeout(() => this.splash.set(false), 420);
+    this.finishBoot();
   }
 
   private async startSession(): Promise<void> {
     if (await this.auth.restore()) {
       await this.reload();
     }
+  }
+
+  /**
+   * Leaves the splash and shows whatever the boot managed to produce.
+   *
+   * <p>Separate from {@link ngOnInit} so the sequence has one exit, reached on
+   * every path: a restored session, no session, a slow provider or a failed
+   * exchange. An interface that cannot start is worse than one that starts with
+   * nothing signed in.
+   */
+  private finishBoot(): void {
+    this.starting.set(false);
+    window.setTimeout(() => this.splash.set(false), 420);
   }
 
   private after(milliseconds: number): Promise<void> {
@@ -108,8 +122,12 @@ export class AppComponent implements OnInit {
     await this.run(() => this.store.issueCard(), 'Cartão emitido e já disponível.');
   }
 
-  async transferToCard(): Promise<void> {
-    await this.run(() => this.store.loadCard(this.transferAmount), 'Saldo transferido para o cartão.');
+  async addBalance(amount: number): Promise<void> {
+    await this.run(() => this.store.addBalance(amount), 'Saldo adicionado à carteira.');
+  }
+
+  async transferToCard(amount: number): Promise<void> {
+    await this.run(() => this.store.loadCard(amount), 'Saldo transferido para o cartão.');
   }
 
   /** Clicking the card asks for the PIN — to set one the first time, to reveal after that. */
@@ -118,18 +136,15 @@ export class AppComponent implements OnInit {
       this.store.hideNumber();
       return;
     }
-    this.pin = '';
     this.pinPrompt.set(this.store.card()?.pinDefined ? 'reveal' : 'set');
   }
 
   closePinPrompt(): void {
     this.pinPrompt.set('none');
-    this.pin = '';
   }
 
-  async submitPin(): Promise<void> {
+  async submitPin(pin: string): Promise<void> {
     const setting = this.pinPrompt() === 'set';
-    const pin = this.pin;
     this.busy.set(true);
     const error = setting ? await this.store.setPin(pin) : await this.store.revealNumber(pin);
     this.busy.set(false);
@@ -145,13 +160,9 @@ export class AppComponent implements OnInit {
     this.showToast(setting ? 'PIN definido. Toque no cartão para ver o número.' : '');
   }
 
-  async addBalance(): Promise<void> {
-    await this.run(() => this.store.addBalance(this.depositAmount), 'Saldo adicionado à carteira.');
-  }
-
-  async simulate(): Promise<void> {
+  async simulate(intent: PurchaseIntent): Promise<void> {
     this.busy.set(true);
-    const result = await this.store.quote(this.purchaseAmount, this.installments);
+    const result = await this.store.quote(intent.amount, intent.installments);
     this.busy.set(false);
     if (typeof result === 'string') {
       this.quote.set(null);
@@ -161,16 +172,16 @@ export class AppComponent implements OnInit {
     this.quote.set(result);
   }
 
-  async confirmPurchase(): Promise<void> {
+  async confirmPurchase(intent: PurchaseIntent): Promise<void> {
     await this.run(
-      () => this.store.purchase(this.category, this.purchaseAmount, this.installments),
+      () => this.store.purchase(intent.category, intent.amount, intent.installments),
       'Compra autorizada.'
     );
     this.quote.set(null);
   }
 
-  async applyInterestPolicy(): Promise<void> {
-    await this.run(() => this.store.setInterestPolicy(this.monthlyRate), 'Taxa mensal atualizada.');
+  async applyInterestPolicy(monthlyRate: number): Promise<void> {
+    await this.run(() => this.store.setInterestPolicy(monthlyRate), 'Taxa mensal atualizada.');
   }
 
   async reload(): Promise<void> {

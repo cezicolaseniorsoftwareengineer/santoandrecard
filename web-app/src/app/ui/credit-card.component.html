@@ -1,0 +1,14 @@
+<div class="card-slot">
+  <button class="credit-card credit-card--platinum" type="button" (click)="opened.emit()"
+          [attr.aria-label]="revealedNumber() ? 'Ocultar número do cartão' : 'Revelar número do cartão com PIN'">
+    <div class="card-top"><span>Santo André</span><span>{{ card().productName }}</span></div>
+    <div class="chip"></div>
+    <p class="card-number">{{ revealedNumber() ?? '•••• •••• •••• ' + card().lastFourDigits }}</p>
+    <div class="card-bottom"><span>{{ holderName() | uppercase }}</span><strong>{{ card().status }}</strong></div>
+  </button>
+  <p class="card-hint">
+    {{ revealedNumber() ? 'Toque no cartão para ocultar o número.'
+       : (card().pinDefined ? 'Toque no cartão e informe o PIN para ver o número completo.'
+                            : 'Toque no cartão para criar seu PIN de 4 dígitos.') }}
+  </p>
+</div>

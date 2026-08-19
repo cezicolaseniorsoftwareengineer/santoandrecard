@@ -1,0 +1,16 @@
+<section class="page-heading">
+  <div><p class="eyebrow">Movimentações</p><h2>Extrato de compras</h2><p>Compras registradas na sua conta.</p></div>
+  <button class="secondary" (click)="refreshed.emit()" [disabled]="store.loading()">Atualizar</button>
+</section>
+<section class="panel transaction-list">
+  @for (item of store.purchases(); track item.id) {
+    <div class="transaction">
+      <span class="transaction-icon">↑</span>
+      <span>
+        <strong>{{ item.merchantCategory }}</strong>
+        <small>{{ item.createdAt | date:'dd/MM/yyyy' }} · {{ item.installments }}x de {{ item.installmentAmount | currency:'BRL' }}@if (item.lastInstallmentAmount !== item.installmentAmount) { (última {{ item.lastInstallmentAmount | currency:'BRL' }}) } @if (item.interest > 0) { · juros {{ item.interest | currency:'BRL' }} a {{ item.monthlyRate | percent:'1.2-4' }} a.m. }</small>
+      </span>
+      <strong>{{ -item.total | currency:'BRL' }}</strong>
+    </div>
+  } @empty { <p class="demo-hint">Nenhuma compra registrada ainda.</p> }
+</section>

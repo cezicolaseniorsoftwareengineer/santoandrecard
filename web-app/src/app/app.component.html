@@ -1,46 +1,15 @@
 @if (splash()) {
-  <div class="splash" [class.splash--leaving]="!starting()" role="status" aria-label="Iniciando Banco Santo André">
-    <img src="assets/brand/banco-santo-andre-logo.png" alt="Banco Santo André">
-  </div>
+  <app-splash [leaving]="!starting()" />
 }
+
 @if (starting()) {
   <main class="boot-shell"></main>
 } @else if (!session()) {
-  <main class="login-shell">
-    <section class="login-story" aria-label="Apresentação do Banco Santo André">
-      <img class="brand-logo brand-logo--hero" src="assets/brand/banco-santo-andre-logo.png" alt="Banco Santo André">
-      <p class="eyebrow">Seu cartão, do seu jeito</p>
-      <h1>Clareza para escolher.<br>Controle para realizar.</h1>
-      <p class="lead">Cuide do saldo, simule compras e acompanhe cada parcela.</p>
-      <div class="security-note"><span aria-hidden="true">✓</span><span><strong>Ambiente de demonstração</strong><br>Valores são simulados e não representam dinheiro real.</span></div>
-    </section>
-    <section class="login-panel">
-      <div class="login-card">
-        <span class="mobile-brand">Santo André</span>
-        <p class="eyebrow">Boas-vindas</p><h2>Acesse sua conta</h2>
-        <p>A autenticação é feita pelo provedor de identidade do banco.</p>
-        <button class="primary full" type="button" (click)="login()">Entrar com segurança <span aria-hidden="true">→</span></button>
-        <button class="secondary full" type="button" (click)="register()">Criar minha conta</button>
-      </div>
-    </section>
-  </main>
+  <app-login (signIn)="login()" (signUp)="register()" />
 } @else {
   <div class="app-shell">
-    <aside class="sidebar">
-      <img class="brand-logo" src="assets/brand/banco-santo-andre-logo.png" alt="Banco Santo André">
-      <nav aria-label="Navegação principal">
-        @if (!isAdmin()) {
-          <button [class.active]="view() === 'overview'" (click)="navigate('overview')"><span>⌂</span> Visão geral</button>
-          <button [class.active]="view() === 'shopping'" (click)="navigate('shopping')"><span>◇</span> Comprar</button>
-          <button [class.active]="view() === 'statement'" (click)="navigate('statement')"><span>≡</span> Extrato</button>
-        } @else { <button class="active"><span>▦</span> Painel executivo</button> }
-      </nav>
-      <div class="sidebar-bottom">
-        <span class="avatar">{{ session()!.name.charAt(0) }}</span>
-        <span><strong>{{ session()!.name }}</strong><small>{{ isAdmin() ? 'Administrador' : 'Conta digital' }}</small></span>
-        <button class="icon-button" (click)="logout()" aria-label="Sair">↪</button>
-      </div>
-    </aside>
+    <app-sidebar [session]="session()!" [isAdmin]="isAdmin()" [view]="view()"
+                 (navigated)="navigate($event)" (signedOut)="logout()" />
     <main class="content">
       <header class="topbar">
         <div><p class="eyebrow">{{ isAdmin() ? 'Administração' : 'Minha conta' }}</p><h1>Olá, {{ session()!.name }}</h1></div>
@@ -48,160 +17,27 @@
       </header>
 
       @if (isAdmin()) {
-        <section class="hero-row"><div><p class="eyebrow light">Banco Santo André</p><h2>Carteira consolidada</h2><p>Números apurados diretamente pelo serviço de cartões.</p></div><div class="hero-date"><button class="white-button" (click)="reload()" [disabled]="store.loading()">Atualizar</button></div></section>
-        @if (store.adminSummary(); as summary) {
-          <section class="metrics-grid">
-            <article class="metric"><span>Carteiras de clientes</span><strong>{{ summary.customerWallets }}</strong><small>Com saldo registrado</small></article>
-            <article class="metric"><span>Saldo total em carteira</span><strong>{{ summary.totalWalletBalance | currency:'BRL' }}</strong><small>Somatório das carteiras</small></article>
-            <article class="metric"><span>Principal comprado</span><strong>{{ summary.purchasePrincipal | currency:'BRL' }}</strong><small>Sem juros</small></article>
-            <article class="metric"><span>Receita de juros</span><strong>{{ summary.interestRevenue | currency:'BRL' }}</strong><small>Acumulada</small></article>
-          </section>
-        }
-        <section class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">Política</p><h2>Taxa de juros mensal</h2></div></div>
-          <form class="form-panel" (ngSubmit)="applyInterestPolicy()">
-            <label for="rate">Taxa mensal (0% a 60%)</label>
-            <input id="rate" name="rate" type="number" min="0" max="0.6" step="0.0001" [(ngModel)]="monthlyRate" required>
-            <small>0,0199 equivale a 1,99% ao mês. O máximo é 0,6 (60%). Aplica-se a este
-              tenant e vale apenas para compras parceladas: à vista nunca tem juros.</small>
-            @if (store.monthlyRate() !== null) {
-              <p class="demo-hint">Taxa em vigor: <strong>{{ store.monthlyRate()! | percent:'1.2-4' }}</strong> ao mês.</p>
-            }
-            <button class="primary" type="submit" [disabled]="busy()">Salvar taxa</button>
-          </form>
-        </section>
+        <app-admin-dashboard [busy]="busy()"
+                             (refreshed)="reload()" (rateApplied)="applyInterestPolicy($event)" />
       } @else if (view() === 'overview') {
-        <section class="hero-row customer">
-          <div class="balances">
-            <div class="balance">
-              <p class="eyebrow light">Saldo em carteira</p>
-              <div class="balance-line">
-                <h2>{{ balanceVisible() ? (store.balance() | currency:'BRL') : '••••••' }}</h2>
-                <button class="eye" type="button" (click)="balanceVisible.set(!balanceVisible())"
-                        [attr.aria-label]="balanceVisible() ? 'Ocultar saldo' : 'Mostrar saldo'"
-                        [attr.aria-pressed]="!balanceVisible()">
-                  @if (balanceVisible()) {
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.6 12S5.5 5 12 5s10.4 7 10.4 7-3.9 7-10.4 7S1.6 12 1.6 12Z"/><circle cx="12" cy="12" r="3.2"/></svg>
-                  } @else {
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.6 12S5.5 5 12 5s10.4 7 10.4 7-3.9 7-10.4 7S1.6 12 1.6 12Z"/><circle cx="12" cy="12" r="3.2"/><line x1="3.5" y1="20.5" x2="20.5" y2="3.5"/></svg>
-                  }
-                </button>
-              </div>
-            </div>
-            <div class="balance">
-              <p class="eyebrow light">Disponível para compra no cartão</p>
-              <h2 class="secondary-balance">{{ balanceVisible() ? (store.cardBalance() | currency:'BRL') : '••••••' }}</h2>
-            </div>
-          </div>
-          <div class="hero-forms">
-            <form class="quick-deposit" (ngSubmit)="addBalance()">
-              <label for="deposit">Adicionar saldo</label>
-              <div><span>R$</span><input id="deposit" name="deposit" type="text" inputmode="numeric" appBrl [(ngModel)]="depositAmount"><button type="submit" [disabled]="busy()">Adicionar</button></div>
-            </form>
-            <form class="quick-deposit" (ngSubmit)="transferToCard()">
-              <label for="transfer">Transferir para o cartão</label>
-              <div><span>R$</span><input id="transfer" name="transfer" type="text" inputmode="numeric" appBrl [(ngModel)]="transferAmount"><button type="submit" [disabled]="busy()">Transferir</button></div>
-            </form>
-          </div>
-        </section>
-        <section class="dashboard-grid">
-          @if (store.card(); as card) {
-            <div class="card-slot">
-              <button class="credit-card credit-card--platinum" type="button" (click)="openCard()"
-                      [attr.aria-label]="store.revealedNumber() ? 'Ocultar número do cartão' : 'Revelar número do cartão com PIN'">
-                <div class="card-top"><span>Santo André</span><span>{{ card.productName }}</span></div>
-                <div class="chip"></div>
-                <p class="card-number">{{ store.revealedNumber() ?? '•••• •••• •••• ' + card.lastFourDigits }}</p>
-                <div class="card-bottom"><span>{{ session()!.name | uppercase }}</span><strong>{{ card.status }}</strong></div>
-              </button>
-              <p class="card-hint">
-                {{ store.revealedNumber() ? 'Toque no cartão para ocultar o número.'
-                   : (card.pinDefined ? 'Toque no cartão e informe o PIN para ver o número completo.'
-                                      : 'Toque no cartão para criar seu PIN de 4 dígitos.') }}
-              </p>
-            </div>
-            <article class="limit-card">
-              <p>Limite disponível</p><strong>{{ store.availableLimit() | currency:'BRL' }}</strong>
-              <div class="progress"><i [style.width.%]="card.creditLimit ? (store.committed() / card.creditLimit * 100) : 0"></i></div>
-              <div><span>Comprometido<br><strong>{{ store.committed() | currency:'BRL' }}</strong></span><span>Limite total<br><strong>{{ card.creditLimit | currency:'BRL' }}</strong></span></div>
-              <button class="primary" (click)="navigate('shopping')">Fazer uma compra</button>
-            </article>
-          } @else {
-            <article class="issue-card">
-              <p class="eyebrow">Disponível 24 horas</p>
-              <h3>Peça seu Santo André Card Platinum</h3>
-              <p>Emissão imediata, a qualquer hora, direto pela sua conta. O limite é definido pela política do banco.</p>
-              <button class="primary full" type="button" (click)="issueCard()" [disabled]="busy()">Gerar meu cartão</button>
-            </article>
-          }
-        </section>
-        <section class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">Últimas compras</p><h2>Movimentações recentes</h2></div><button class="text-button" (click)="navigate('statement')">Ver extrato completo →</button></div>
-          <div class="transaction-list">
-            @for (item of store.purchases().slice(0, 3); track item.id) {
-              <div class="transaction"><span class="transaction-icon">↑</span><span><strong>{{ item.merchantCategory }}</strong><small>{{ item.createdAt | date:'dd MMM':'':'pt-BR' }} · {{ item.installments }}x</small></span><strong>{{ -item.total | currency:'BRL' }}</strong></div>
-            } @empty { <p class="demo-hint">Nenhuma compra registrada ainda.</p> }
-          </div>
-        </section>
+        <app-customer-overview
+          [busy]="busy()" [holderName]="session()!.name"
+          (deposited)="addBalance($event)" (transferred)="transferToCard($event)"
+          (cardIssued)="issueCard()" (cardOpened)="openCard()"
+          (shoppingRequested)="navigate('shopping')" (statementRequested)="navigate('statement')" />
       } @else if (view() === 'shopping') {
-        <section class="page-heading"><div><p class="eyebrow">Compra com parcelamento</p><h2>Nova compra</h2><p>O cálculo de juros é feito pelo serviço de cartões, não pelo navegador.</p></div><div class="available-pill">Disponível no cartão <strong>{{ store.cardBalance() | currency:'BRL' }}</strong></div></section>
-        <section class="simulator-grid">
-          <form class="panel form-panel" (ngSubmit)="simulate()">
-            <label for="category">Categoria do estabelecimento</label>
-            <select id="category" name="category" [(ngModel)]="category">@for (item of categories; track item) { <option [value]="item">{{ item }}</option> }</select>
-            <label for="amount">Valor da compra</label>
-            <div class="money-input"><span>R$</span><input id="amount" name="amount" type="text" inputmode="numeric" appBrl [(ngModel)]="purchaseAmount" required></div>
-            <label for="installments">Parcelas</label>
-            <select id="installments" name="installments" [(ngModel)]="installments">@for (n of installmentOptions; track n) { <option [value]="n">{{ n }}x@if (n === 1) { · à vista, sem juros }</option> }</select>
-            <small>À vista não tem juros. Parcelado usa a taxa vigente@if (store.monthlyRate() !== null) { de <strong>{{ store.monthlyRate()! | percent:'1.2-4' }}</strong> ao mês }, definida pela administração do banco.</small>
-            <button class="primary full" type="submit" [disabled]="busy()">Calcular condições</button>
-          </form>
-          <aside class="simulation-result" [class.empty]="!quote()">
-            @if (quote(); as result) {
-              <p class="eyebrow light">Condições retornadas pela API</p>
-              <h3>{{ result.installments }}x de</h3><strong>{{ result.installmentAmount | currency:'BRL' }}</strong><hr>
-              <div><span>Compra</span><b>{{ result.principal | currency:'BRL' }}</b></div>
-              <div><span>Juros</span><b>{{ result.interest | currency:'BRL' }}</b></div>
-              @if (result.installments > 1) {
-                <div><span>Taxa aplicada</span><b>{{ result.monthlyRate | percent:'1.2-4' }} a.m.</b></div>
-              }
-              @if (result.lastInstallmentAmount !== result.installmentAmount) {
-                <div><span>Última parcela</span><b>{{ result.lastInstallmentAmount | currency:'BRL' }}</b></div>
-              }
-              <div><span>Total</span><b>{{ result.total | currency:'BRL' }}</b></div>
-              <p class="disclaimer">O valor total é debitado do saldo do cartão no momento da confirmação.</p>
-              <button class="white-button" (click)="confirmPurchase()" [disabled]="busy()">Confirmar compra</button>
-            } @else {
-              <span class="result-icon">◇</span><h3>O resultado aparece aqui</h3><p>Preencha os dados para ver as condições.</p>
-            }
-          </aside>
-        </section>
+        <app-purchase-simulator [busy]="busy()" [quote]="quote()"
+                                (simulated)="simulate($event)" (confirmed)="confirmPurchase($event)" />
       } @else {
-        <section class="page-heading"><div><p class="eyebrow">Movimentações</p><h2>Extrato de compras</h2><p>Compras registradas na sua conta.</p></div><button class="secondary" (click)="reload()" [disabled]="store.loading()">Atualizar</button></section>
-        <section class="panel transaction-list">
-          @for (item of store.purchases(); track item.id) {
-            <div class="transaction"><span class="transaction-icon">↑</span><span><strong>{{ item.merchantCategory }}</strong><small>{{ item.createdAt | date:'dd/MM/yyyy' }} · {{ item.installments }}x de {{ item.installmentAmount | currency:'BRL' }}@if (item.lastInstallmentAmount !== item.installmentAmount) { (última {{ item.lastInstallmentAmount | currency:'BRL' }}) } @if (item.interest > 0) { · juros {{ item.interest | currency:'BRL' }} a {{ item.monthlyRate | percent:'1.2-4' }} a.m. }</small></span><strong>{{ -item.total | currency:'BRL' }}</strong></div>
-          } @empty { <p class="demo-hint">Nenhuma compra registrada ainda.</p> }
-        </section>
+        <app-statement (refreshed)="reload()" />
       }
     </main>
   </div>
 }
+
 @if (pinPrompt() !== 'none') {
-  <div class="pin-backdrop" (click)="closePinPrompt()"></div>
-  <div class="pin-dialog" role="dialog" aria-modal="true" aria-labelledby="pin-title">
-    <h3 id="pin-title">{{ pinPrompt() === 'set' ? 'Crie seu PIN' : 'Informe seu PIN' }}</h3>
-    <p>{{ pinPrompt() === 'set' ? 'Quatro dígitos. Ele protege o número do seu cartão.'
-                                : 'Quatro dígitos. O cartão bloqueia após 5 tentativas erradas.' }}</p>
-    <form (ngSubmit)="submitPin()">
-      <label for="pin">PIN</label>
-      <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off"
-             maxlength="4" pattern="[0-9]{4}" [(ngModel)]="pin" required>
-      <div class="pin-actions">
-        <button class="secondary" type="button" (click)="closePinPrompt()">Cancelar</button>
-        <button class="primary" type="submit" [disabled]="busy()">{{ pinPrompt() === 'set' ? 'Salvar PIN' : 'Revelar' }}</button>
-      </div>
-    </form>
-  </div>
+  <app-pin-dialog [purpose]="$any(pinPrompt())" [busy]="busy()"
+                  (confirmed)="submitPin($event)" (dismissed)="closePinPrompt()" />
 }
-@if (toast()) { <div class="toast" role="status" aria-live="polite">{{ toast() }}</div> }
+
+<app-toast [message]="toast()" />

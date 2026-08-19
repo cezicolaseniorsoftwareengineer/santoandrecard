@@ -1,0 +1,18 @@
+<main class="login-shell">
+  <section class="login-story" aria-label="Apresentação do Banco Santo André">
+    <img class="brand-logo brand-logo--hero" src="assets/brand/banco-santo-andre-logo.png" alt="Banco Santo André">
+    <p class="eyebrow">Seu cartão, do seu jeito</p>
+    <h1>Clareza para escolher.<br>Controle para realizar.</h1>
+    <p class="lead">Cuide do saldo, simule compras e acompanhe cada parcela.</p>
+    <div class="security-note"><span aria-hidden="true">✓</span><span><strong>Ambiente de demonstração</strong><br>Valores são simulados e não representam dinheiro real.</span></div>
+  </section>
+  <section class="login-panel">
+    <div class="login-card">
+      <span class="mobile-brand">Santo André</span>
+      <p class="eyebrow">Boas-vindas</p><h2>Acesse sua conta</h2>
+      <p>A autenticação é feita pelo provedor de identidade do banco.</p>
+      <button class="primary full" type="button" (click)="signIn.emit()">Entrar com segurança <span aria-hidden="true">→</span></button>
+      <button class="secondary full" type="button" (click)="signUp.emit()">Criar minha conta</button>
+    </div>
+  </section>
+</main>

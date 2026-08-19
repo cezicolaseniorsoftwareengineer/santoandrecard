@@ -1,0 +1,15 @@
+<aside class="sidebar">
+  <img class="brand-logo" src="assets/brand/banco-santo-andre-logo.png" alt="Banco Santo André">
+  <nav aria-label="Navegação principal">
+    @if (!isAdmin()) {
+      <button [class.active]="view() === 'overview'" (click)="navigated.emit('overview')"><span>⌂</span> Visão geral</button>
+      <button [class.active]="view() === 'shopping'" (click)="navigated.emit('shopping')"><span>◇</span> Comprar</button>
+      <button [class.active]="view() === 'statement'" (click)="navigated.emit('statement')"><span>≡</span> Extrato</button>
+    } @else { <button class="active"><span>▦</span> Painel executivo</button> }
+  </nav>
+  <div class="sidebar-bottom">
+    <span class="avatar">{{ session().name.charAt(0) }}</span>
+    <span><strong>{{ session().name }}</strong><small>{{ isAdmin() ? 'Administrador' : 'Conta digital' }}</small></span>
+    <button class="icon-button" (click)="signedOut.emit()" aria-label="Sair">↪</button>
+  </div>
+</aside>

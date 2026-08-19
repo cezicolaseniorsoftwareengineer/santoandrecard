@@ -1,0 +1,34 @@
+<section class="hero-row">
+  <div>
+    <p class="eyebrow light">Banco Santo André</p>
+    <h2>Carteira consolidada</h2>
+    <p>Números apurados diretamente pelo serviço de cartões.</p>
+  </div>
+  <div class="hero-date">
+    <button class="white-button" (click)="refreshed.emit()" [disabled]="store.loading()">Atualizar</button>
+  </div>
+</section>
+
+@if (store.adminSummary(); as summary) {
+  <section class="metrics-grid">
+    <article class="metric"><span>Carteiras de clientes</span><strong>{{ summary.customerWallets }}</strong><small>Com saldo registrado</small></article>
+    <article class="metric"><span>Saldo total em carteira</span><strong>{{ summary.totalWalletBalance | currency:'BRL' }}</strong><small>Somatório das carteiras</small></article>
+    <article class="metric"><span>Principal comprado</span><strong>{{ summary.purchasePrincipal | currency:'BRL' }}</strong><small>Sem juros</small></article>
+    <article class="metric"><span>Receita de juros</span><strong>{{ summary.interestRevenue | currency:'BRL' }}</strong><small>Acumulada</small></article>
+  </section>
+}
+
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">Política</p><h2>Taxa de juros mensal</h2></div></div>
+  <form class="form-panel" (ngSubmit)="rateApplied.emit(monthlyRate())">
+    <label for="rate">Taxa mensal (0% a 60%)</label>
+    <input id="rate" name="rate" type="number" min="0" max="0.6" step="0.0001"
+           [ngModel]="monthlyRate()" (ngModelChange)="monthlyRate.set($event)" required>
+    <small>0,0199 equivale a 1,99% ao mês. O máximo é 0,6 (60%). Aplica-se a este
+      tenant e vale apenas para compras parceladas: à vista nunca tem juros.</small>
+    @if (store.monthlyRate() !== null) {
+      <p class="demo-hint">Taxa em vigor: <strong>{{ store.monthlyRate()! | percent:'1.2-4' }}</strong> ao mês.</p>
+    }
+    <button class="primary" type="submit" [disabled]="busy()">Salvar taxa</button>
+  </form>
+</section>

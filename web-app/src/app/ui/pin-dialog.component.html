@@ -1,0 +1,15 @@
+<div class="pin-backdrop" (click)="dismissed.emit()"></div>
+<div class="pin-dialog" role="dialog" aria-modal="true" aria-labelledby="pin-title">
+  <h3 id="pin-title">{{ purpose() === 'set' ? 'Crie seu PIN' : 'Informe seu PIN' }}</h3>
+  <p>{{ purpose() === 'set' ? 'Quatro dígitos. Ele protege o número do seu cartão.'
+                            : 'Quatro dígitos. O cartão bloqueia após 5 tentativas erradas.' }}</p>
+  <form (ngSubmit)="submit()">
+    <label for="pin">PIN</label>
+    <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off"
+           maxlength="4" pattern="[0-9]{4}" [ngModel]="pin()" (ngModelChange)="pin.set($event)" required>
+    <div class="pin-actions">
+      <button class="secondary" type="button" (click)="dismissed.emit()">Cancelar</button>
+      <button class="primary" type="submit" [disabled]="busy()">{{ purpose() === 'set' ? 'Salvar PIN' : 'Revelar' }}</button>
+    </div>
+  </form>
+</div>
