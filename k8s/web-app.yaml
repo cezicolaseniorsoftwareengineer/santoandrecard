@@ -38,7 +38,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web-app
-          image: web-app:0.2.0
+          image: web-app:0.3.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

@@ -20,6 +20,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:4420';
 
+/** Anything else is already being served by whoever deployed it. */
+const E2E_BASE_URL_IS_LOCAL = BASE_URL.includes('localhost:4420');
+
 export default defineConfig({
   testDir: './e2e',
   // The journey is one ordered story per file: registering, issuing and buying
@@ -44,14 +47,20 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
   ],
-  webServer: {
-    // The production build, not the development server. The journey should meet
-    // the bundle that would be deployed — optimised, with the same budgets — and
-    // a development server also brings its own overlay, which happily covers the
-    // button a test is trying to click.
-    command: 'npm run start:e2e',
-    url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000
-  }
+  // Started only when the journey is pointed at the local front end. Against a
+  // deployed environment — a cluster, a staging host — the application is
+  // already being served, and starting a second copy would test that one
+  // instead of the one under test.
+  webServer: E2E_BASE_URL_IS_LOCAL
+    ? {
+        // The production build, not the development server. The journey should
+        // meet the bundle that would be deployed — optimised, with the same
+        // budgets — and a development server also brings its own overlay, which
+        // happily covers the button a test is trying to click.
+        command: 'npm run start:e2e',
+        url: BASE_URL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000
+      }
+    : undefined
 });

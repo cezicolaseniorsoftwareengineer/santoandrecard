@@ -9,6 +9,16 @@ metadata:
   name: kafka
 spec:
   clusterIP: None
+  # A KRaft broker resolves its own pod name to reach the controller quorum, and
+  # a headless Service publishes a pod's DNS record only once that pod is Ready.
+  # The broker is therefore waiting on a name that will not exist until it has
+  # finished starting, which it cannot do without the name: kafka-0 failed with
+  # UnknownHostException on every attempt and never once became Ready.
+  #
+  # Publishing addresses before readiness breaks the deadlock. It is the right
+  # trade for a StatefulSet whose members must find each other: the record is
+  # for peer discovery, and clients reach the broker through readiness anyway.
+  publishNotReadyAddresses: true
   selector:
     app.kubernetes.io/name: kafka
   ports:
@@ -77,21 +87,34 @@ spec:
               value: "1"
             - name: KAFKA_LOG_DIRS
               value: /var/lib/kafka/data
+          # The readiness command launches a whole JVM. Running it every ten
+          # seconds against a broker limited to one CPU means the probe competes
+          # with the thing it is measuring, and it lost: the broker never bound
+          # its listener inside the liveness budget and was killed 343 times.
+          #
+          # Startup is now judged by the listener being open, which costs
+          # nothing. The client check still runs, because a bound socket is not
+          # the same as a broker that can serve metadata — but once, at a period
+          # long enough that it is an observation rather than a load.
+          startupProbe:
+            tcpSocket:
+              port: plaintext
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             exec:
               command:
                 - /bin/sh
                 - -c
                 - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            timeoutSeconds: 10
-            failureThreshold: 12
+            periodSeconds: 60
+            timeoutSeconds: 20
+            failureThreshold: 5
           livenessProbe:
             tcpSocket:
               port: plaintext
-            initialDelaySeconds: 60
-            periodSeconds: 15
+            periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 6
           securityContext:

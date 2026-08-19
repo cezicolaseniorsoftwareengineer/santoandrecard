@@ -14,6 +14,14 @@ data:
   # Discovery runs over the Service name above; the token the browser presents was
   # issued through the Ingress host, so `iss` carries that one instead.
   OIDC_TOKEN_ISSUER: http://keycloak.card-platform.localhost/realms/card-platform
+  # Kafka and Redis were deployed to this namespace and the service was never
+  # told where they are, so both fell back to their localhost defaults inside
+  # the pod. The failure is quiet by design and therefore easy to miss: the
+  # outbox holds an event it cannot publish rather than losing it, and the
+  # throttle and cache degrade open. The events still never left, and the
+  # brokers ran for two days serving nobody.
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  REDIS_URL: redis://redis:6379
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -52,7 +60,7 @@ spec:
         - name: card-service
           # Tags must be immutable: reusing a tag leaves nodes serving a stale
           # cached image under imagePullPolicy IfNotPresent.
-          image: card-service:0.2.0
+          image: card-service:0.3.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
