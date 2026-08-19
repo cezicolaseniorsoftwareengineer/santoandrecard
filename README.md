@@ -1,62 +1,163 @@
 # Banco Santo André Card Platform
 
-<img width="1252" height="546" alt="image" src="https://github.com/user-attachments/assets/05425008-7fbe-4456-b196-28dcec41e7cd" /> <img width="1275" height="603" alt="image" src="https://github.com/user-attachments/assets/3c67e3e4-c19f-42f3-b5d4-a74862568719" />
+A card issuing and ledger platform, built to show what the engineering behind
+money looks like when every claim on this page is attached to the test that
+proves it. Banco Santo André is a fictitious institution; the code is original,
+carries no third-party branding, and must never receive real customer data.
 
-<img width="1275" height="612" alt="image" src="https://github.com/user-attachments/assets/c0eeeb88-dce3-4ee6-8660-ec96404c9168" />
+The centre of it is a double-entry ledger. Balances are not stored figures that
+code remembers to update — they are sums over immutable postings, and an entry
+whose debits and credits differ cannot be constructed:
 
-ADMIN
-<img width="1276" height="598" alt="image" src="https://github.com/user-attachments/assets/03150f39-c943-40f9-aacf-fba6b9df6503" />
+```java
+// JournalEntry.java — the invariant lives in the domain, not in the service
+// and not in the database. An unbalanced entry is not a persistence problem;
+// it is not a transaction at all.
+BigDecimal debits  = sumOf(postings, DEBIT);
+BigDecimal credits = sumOf(postings, CREDIT);
+if (debits.compareTo(credits) != 0) {
+    throw new UnbalancedTransactionException(debits, credits);
+}
+```
 
-USER
-<img width="1270" height="598" alt="image" src="https://github.com/user-attachments/assets/df140951-0cd8-470b-9212-d15ccfa0967d" />
+Everything else in the repository exists to keep that book honest under the
+conditions that actually break systems: two requests racing for the same wallet,
+a client retrying a payment it never learned the outcome of, a broker that is
+down when the money has already committed, a database that disagrees with the
+cache in front of it.
 
+## The claims, and where each one is proved
 
-Educational credit-card platform MVP built with Java 17 and Quarkus. Banco Santo
-André is a fictitious institution created for this project. The work is original:
-it derives from no bank's source code, carries no third-party branding and claims
-no compatibility with any proprietary system. It must not be exposed outside an
-isolated local development environment or receive real customer data.
+Nothing here rests on the description. Each row names the file that fails if the
+guarantee stops holding.
+
+| Guarantee | How it is enforced | What proves it |
+| --- | --- | --- |
+| An unbalanced transaction cannot exist | Checked in the record's constructor, before anything is written | `JournalEntryTest` |
+| Two concurrent purchases cannot overspend one card | Pessimistic row lock on the wallet as a per-customer mutex | `LedgerConcurrencyOnPostgresTest`, **on real PostgreSQL** — H2 has its own idea of what a write lock means |
+| A retried payment is charged once | Unique index on `(tenant_id, idempotency_key)`; the loser of the race reads the winner's result | `CardIdempotencyConcurrencyTest`, `MoneyIdempotencyTest` |
+| The cached balance never drifts from the book | Reconciliation recomputes from postings and compares | `LedgerReconciliationTest` |
+| An event about money is never lost | Transactional outbox; publish then mark, at least once, stable `event-id` | `OutboxRelayTest` |
+| A card number is behind a PIN, not behind a session | PBKDF2, 210k iterations, per-card salt, constant-time compare, durable attempt budget | `CardPinTest`, `PinVerificationCostTest`, `cardholder-journey.spec.ts` |
+| Identity is never taken from the request | Tenant and customer derived from verified token claims only | `SelfServiceIssuanceTest`, `IdentityProviderUnavailableTest` |
+| A slow merchant network refuses rather than debits | Timeout, circuit breaker, fail-closed fallback, HTTP `503` | `AuthorizationLifecycleTest` |
+| Load sheds instead of queueing inside a transaction | Bounded admission, HTTP `429` with `Retry-After` | `PurchaseBackpressureGuardTest`, `CardLoadTest` |
+| The schema PostgreSQL will accept is the schema that was tested | The packaged app boots against real PostgreSQL in CI, Flyway applies all 12 migrations, Hibernate validates the mapping | `.github/workflows/build.yml`, job `schema on PostgreSQL` |
+
+Coverage is a floor that fails the build rather than a report nobody opens. The
+suite currently reaches **84% of instructions and 59% of branches**, and the
+gate is set just under that, so erosion fails the next commit rather than this
+one. The figures are the measurement, not an aspiration: the floors are raised
+when the suite earns it and never lowered to make a build pass.
+
+## Run it, and see it working
+
+```bash
+docker compose up -d                    # PostgreSQL, Redis, Kafka, Keycloak
+cd card-service && mvn quarkus:dev      # API on :8080, Swagger at /q/swagger-ui
+cd ../web-app && npm ci && npm start    # interface on :4420
+```
+
+Then open `http://localhost:4420`, create an account through "Criar minha conta"
+— the registration happens on Keycloak, and the application never sees a
+password — issue a card, fund it and buy something.
+
+To watch what it does while you do it:
+
+```bash
+docker compose --profile observability up -d
+OTEL_ENABLED=true mvn -pl card-service quarkus:dev
+```
+
+Grafana is at `http://localhost:3000` with the dashboard already provisioned —
+money moved per operation, refusals by reason, authorizations held against
+captured, outbox delivery, and the 99th percentile of the endpoints that carry
+money. Traces go to Tempo, and every log line carries the trace id that produced
+it. A service can answer every request in ten milliseconds while declining every
+one of them, and the JVM gauges will look perfect throughout; these panels are
+the ones that would not.
+
+## The whole suite
+
+```bash
+mvn -B verify                           # unit, API, PostgreSQL concurrency, coverage floors
+cd web-app && npm test                  # component and store tests
+npm run e2e                             # browser, real Keycloak, real API
+```
+
+`mvn verify` needs Docker for the PostgreSQL tests. `npm run e2e` needs the stack
+and the API already running; it starts the front end itself, registers a fresh
+cardholder through the real identity provider, and drives the journey a customer
+would.
+
+## What it looks like
+
+<img width="1252" alt="Sign-in" src="https://github.com/user-attachments/assets/05425008-7fbe-4456-b196-28dcec41e7cd" /> <img width="1275" alt="Cardholder dashboard" src="https://github.com/user-attachments/assets/3c67e3e4-c19f-42f3-b5d4-a74862568719" />
+
+<img width="1275" alt="Purchase simulation" src="https://github.com/user-attachments/assets/c0eeeb88-dce3-4ee6-8660-ec96404c9168" />
+
+Administrative view
+
+<img width="1276" alt="Portfolio summary" src="https://github.com/user-attachments/assets/03150f39-c943-40f9-aacf-fba6b9df6503" />
+
+Cardholder view
+
+<img width="1270" alt="Card and limit" src="https://github.com/user-attachments/assets/df140951-0cd8-470b-9212-d15ccfa0967d" />
+
+## Architecture in one paragraph
+
+`card-service` is hexagonal: a domain of records and invariants that knows
+nothing about Quarkus, application services that own transactions, and adapters
+at the edges for REST, JPA, Kafka, Redis and the merchant network. PostgreSQL is
+the source of truth and answers for every cent. Kafka carries domain events out
+through a transactional outbox. Redis holds a short-window throttle and a
+read-through cache, both of which degrade open — losing the entire dataset costs
+a window of throttling and one database read, never a cent. The Angular front end
+displays only figures that came from an API response, so the interface cannot
+disagree with the ledger.
 
 ## Delivered increments
 
 - Hexagonal `card-service` with a framework-independent domain model.
-- Idempotent card creation without storing PAN, CVV or sensitive authentication data.
-- PostgreSQL persistence and Flyway schema migration.
-- REST/OpenAPI, health endpoints and Prometheus metrics.
-- Unit and API integration tests.
-- Local PostgreSQL, Redis and Kafka infrastructure through Docker Compose.
-- Hardened Kubernetes workload manifest with probes and resource limits.
+- Double-entry ledger with balance enforced in the domain, plus reconciliation
+  of the wallet projection against the book.
+- Idempotent card creation and money movement, without storing PAN, CVV or
+  sensitive authentication data.
+- PostgreSQL persistence with twelve versioned Flyway migrations.
+- REST/OpenAPI, health endpoints, Prometheus metrics and OpenTelemetry traces.
+- Unit, API, concurrency-on-PostgreSQL and browser end-to-end tests, with
+  enforced coverage floors.
+- Local PostgreSQL, Redis, Kafka and Keycloak through Docker Compose, and a
+  provisioned Grafana, Prometheus and Tempo stack behind an `observability`
+  profile.
+- Hardened Kubernetes workload manifests with probes and resource limits.
 - OIDC bearer-token authentication against Keycloak, with `customer` and `admin`
   realm roles and deny-by-default access to every `/api` path.
-- Angular interface connected to the API through authorization code with PKCE,
-  reading cards, wallet, statement and the administrative summary.
-- Read endpoints for the calling customer: `GET /cards`, `GET /wallet` and
-  `GET /purchases`, all scoped to the identity in the token.
+- Angular interface connected to the API through authorization code with PKCE.
 - Tenant and customer identity derived from verified token claims, never from a
-  request header or body.
-- Explicit tenant isolation in card, wallet, purchase and administrative queries.
-- Simulated wallet top-up and merchant purchase flows.
-- Cash and installment quotes with version-ready monthly interest policy.
+  request header or body, with explicit tenant isolation in every query.
+- Simulated wallet top-up, card load and merchant purchase flows, plus the
+  two-step authorization flow with hold, capture, reversal and expiry.
+- Cash and installment quotes with a version-ready monthly interest policy, and
+  interest recorded as revenue rather than buried in a net movement.
 - Administrative portfolio summary for fictitious balances, principal and interest.
-- Explicit purchase backpressure with bounded concurrent admission and HTTP `429` rejection.
-- Merchant authorization circuit breaker with timeout, fail-closed fallback and HTTP `503`.
-- Original responsive Angular interface with customer and admin journeys.
-- Original Banco Santo André visual identity under `assets/brand`.
-- Customer self-registration at the identity provider, with the realm's default
-  role granting access to the cardholder dashboard on first sign-in.
-- Self-service card issuance, available at any hour, with the issuing limit taken
-  from issuer policy and never from the request.
-- Santo André Card Platinum as a product on the card itself, rendered at the
-  ID-1 ratio of a physical card.
+- Explicit purchase backpressure with bounded admission and HTTP `429`.
+- Merchant authorization circuit breaker with timeout, fail-closed fallback and
+  HTTP `503`.
+- Customer self-registration at the identity provider, and self-service card
+  issuance with the limit taken from issuer policy and never from the request.
 - Full card number revealed only against a four-digit PIN derived with PBKDF2 and
   a per-card salt, behind a persisted attempt budget and a distributed throttle.
-- Prepaid card balance funded by a ledger-backed transfer from the wallet.
 - Domain events published to Kafka through a transactional outbox, with
   at-least-once delivery and a stable event id for consumer deduplication.
+- Original Banco Santo André visual identity under `assets/brand`.
 
-Kafka carries domain events out of the service through a transactional outbox.
-Redis carries a short-window throttle and a read-through cache. Neither holds a
-source of truth: PostgreSQL answers for every cent.
+The installment flow is deliberately simplified: it prices interest and debits
+the card immediately. Monthly invoices, receivables, minimum payment,
+delinquency, late fees and reversal are specified in
+`engineering/ADR-002-card-wallet-financial-architecture.md` and are not
+implemented. They are absent from the interface too — showing invented numbers
+next to real balances is how an interface stops being trustworthy.
 
 ## Technology
 
@@ -70,7 +171,7 @@ for appearance.
 | PostgreSQL | 17 | The single source of truth. A unique index enforces idempotency under concurrency, `CHECK` constraints restrict ledger accounts and entry kinds, and a pessimistic row lock serialises debits on one wallet. |
 | Double-entry ledger | own domain | Debit equals credit is enforced in the entry's constructor, so an unbalanced transaction cannot exist. Reconciliation compares the projection against the book. |
 | Hibernate ORM + Panache | via Quarkus | Mapping validated against the real schema at boot; the application generates no DDL and refuses to start on divergence. |
-| Flyway | 8 migrations | Versioned, auditable schema evolution applied at start. |
+| Flyway | 12 migrations | Versioned, auditable schema evolution applied at start. |
 | Apache Kafka | 4.1.1 (KRaft) | Domain events leave the service through a transactional outbox, at least once, keyed by customer — the only scope in which Kafka promises ordering. |
 | Redis | 8 | Distributed PIN throttle and a read-through cache for the administrative summary. Holds no source of truth and degrades open when unreachable. |
 | Quarkus Scheduler | via Quarkus | Drains the outbox, releases expired authorization holds and prunes idempotency records, all outside the request path — a slow broker cannot fail a payment already committed to the ledger. |
@@ -83,11 +184,16 @@ for appearance.
 | Docker + Compose | — | Reproducible local stack with health checks and a pinned project name. |
 | Kubernetes | manifests + Ingress | Deployments, StatefulSets, Ingress and a PodDisruptionBudget, with `runAsNonRoot`, `readOnlyRootFilesystem`, `drop: ALL`, seccomp, resource limits and explicit probe timeouts. |
 | nginx (unprivileged) | front-end image | Serves the built interface as a non-root user, with endpoints injected at runtime so one image serves every environment. |
-| Micrometer + Prometheus | via Quarkus | Runtime and fault-tolerance metrics, alongside health endpoints and a published OpenAPI contract. |
+| Micrometer + Prometheus | via Quarkus | Business outcomes, not just process health: money moved by operation, refusals by reason, authorizations held against captured. Amounts counted in whole centavos, because a counter incremented by 0.1 a thousand times does not read 100. |
+| OpenTelemetry + Tempo | 1.62.0 | Distributed traces with the trace id in every log line. Disabled unless an endpoint is configured, so it costs nothing when nothing is collecting. |
+| Grafana | 12.2, provisioned | The dashboard ships with the repository and arrives already wired to Prometheus and Tempo. A dashboard someone has to rebuild by hand is a dashboard that does not exist during an incident. |
 | JUnit 5 + RestAssured | 3.5.4 | Backend unit and API tests, including overlapping requests and a spent PIN budget. |
-| Vitest | 4.1 | Front-end tests, including a boot that must finish while the API never answers. |
-| GitHub Actions | 5 jobs | Boots the packaged application against real PostgreSQL on every push, because H2 in the fast profile once accepted a schema PostgreSQL rejected. |
-| OWASP Dependency-Check | CI job | Scans backend dependencies for known vulnerabilities, failing on CVSS 7 and above. Dependencies are the part of the attack surface nobody writes. |
+| Testcontainers | 2.0.4 | Runs the concurrency tests against real PostgreSQL. The fast suite uses H2, which accepts `PESSIMISTIC_WRITE` and means something else by it; a lock that only holds on H2 does not hold. |
+| JaCoCo | 0.8.13, enforced | Coverage floors that fail the build, set just under the 84% instruction and 59% branch coverage the suite reaches. Collected through the Quarkus extension, because the bare agent cannot see a `@QuarkusTest` classloader. |
+| Playwright | Chromium | Browser end-to-end journey against the real Keycloak and the real API — a registration redirect, a PKCE exchange and a CORS allow-list only fail where they run. |
+| Vitest | 4.1 | Component and store tests, including a boot that must finish while the API never answers. |
+| GitHub Actions | build, schema, front end, dependencies, CodeQL | Boots the packaged application against real PostgreSQL on every push, because H2 in the fast profile once accepted a schema PostgreSQL rejected. |
+| OSV Scanner | CI job | Scans the resolved dependency tree of both stacks. OSV rather than the NVD feed, because that one needs an API key to be usable at all, and a job that cannot run is a job whose result means nothing. |
 | CodeQL | CI job | Static analysis of the Java and TypeScript this repository writes, which dependency scanning cannot see. |
 
 ## What Redis is allowed to hold
@@ -285,12 +391,30 @@ docker compose down -v       # discards it, which is safe: see ADR-004
 Set `JAVA_HOME` to a JDK 17 installation, then run — identical on both systems:
 
 ```bash
-mvn -B verify
+mvn -B verify                    # unit, API, PostgreSQL concurrency, enforced coverage
 cd web-app
 npm test
 npm run build
 npm audit --audit-level=high
 ```
+
+`mvn verify` needs Docker: the concurrency tests start a real PostgreSQL through
+Testcontainers, and the coverage floors fail the build before the report is
+written if the suite has thinned out. The HTML report lands in
+`card-service/target/jacoco-report`.
+
+The browser journey is separate, because it needs the whole stack up:
+
+```bash
+docker compose up -d
+mvn -pl card-service quarkus:dev     # in another shell
+cd web-app && npm run e2e
+```
+
+It registers a fresh cardholder on the real Keycloak, issues a card, funds it,
+buys, reads the statement, and checks that a card number stays masked until the
+right PIN is given. Failures keep a trace, a screenshot and a video; passes keep
+nothing.
 
 The benchmarks are excluded from the build, because one that reddens a build on a
 slow machine teaches everyone to ignore it. Run them deliberately:
