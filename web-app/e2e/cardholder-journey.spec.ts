@@ -14,6 +14,18 @@ import { expect, Page, test } from '@playwright/test';
  * left by the previous run passes once and then reports history.
  */
 
+/**
+ * The host the application is served from, whatever it is.
+ *
+ * <p>The journey has to recognise coming back from the identity provider, and
+ * hard-coding the development host meant the same test could not be pointed at
+ * a deployed environment — which is the environment whose redirects are most
+ * worth checking, because they are the ones configured by hand.
+ */
+const APP_HOST = new RegExp(
+  new URL(process.env.E2E_BASE_URL ?? 'http://localhost:4420').host.replace(/[.]/g, '\.')
+);
+
 /** Registration through the provider's own page — the flow the product offers. */
 async function registerAndSignIn(page: Page): Promise<string> {
   const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -36,7 +48,7 @@ async function registerAndSignIn(page: Page): Promise<string> {
 
   // Back on the application, carrying an authorization code that the front end
   // exchanges for a token with its PKCE verifier.
-  await page.waitForURL(/localhost:4420/);
+  await page.waitForURL(APP_HOST);
   await expect(page.getByRole('heading', { name: /Olá, / })).toBeVisible();
   return username;
 }
@@ -146,7 +158,7 @@ test.describe('cardholder journey', () => {
     await page.locator('#password').fill(process.env.E2E_ADMIN_PASSWORD ?? 'admin1234');
     await page.getByRole('button', { name: /Sign In|Entrar/i }).click();
 
-    await page.waitForURL(/localhost:4420/);
+    await page.waitForURL(APP_HOST);
     await expect(page.getByRole('heading', { name: 'Carteira consolidada' })).toBeVisible();
     await expect(page.locator('.metrics-grid .metric')).toHaveCount(4);
 

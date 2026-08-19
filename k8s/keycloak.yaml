@@ -68,19 +68,41 @@ spec:
               containerPort: 8080
             - name: management
               containerPort: 9000
+          # Keycloak rebuilds its configuration and imports the realm before it
+          # serves anything, and on a contended node that takes minutes. Without
+          # a startup probe the liveness probe owns that window: it began at 60s
+          # and killed the container three failures later, at exactly 105s,
+          # every time — a crash loop with 139 restarts in which the process was
+          # never unhealthy, only unfinished.
+          #
+          # A startup probe holds liveness back until the container has answered
+          # once. Ten minutes of budget is generous by design: the cost of being
+          # generous is a slow first start, and the cost of being tight is a
+          # service that never starts at all.
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /health/ready
               port: management
-            initialDelaySeconds: 15
-            periodSeconds: 5
-            failureThreshold: 30
+            periodSeconds: 10
+            # The 1s default is shorter than this endpoint answers in while the
+            # realm is still loading, and a probe that times out reads as a
+            # failure rather than as slowness.
+            timeoutSeconds: 5
+            failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /health/live
               port: management
-            initialDelaySeconds: 60
             periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             requests:
               cpu: 200m
