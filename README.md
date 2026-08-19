@@ -188,16 +188,97 @@ returning `MERCHANT_AUTHORIZATION_UNAVAILABLE`, HTTP `503` and `Retry-After: 5`
 without debiting the wallet. Fault-tolerance metrics are exported through the
 existing Micrometer/Prometheus integration.
 
-## Validate
+## Getting started
 
-Set `JAVA_HOME` to a JDK 17 installation, then run:
+Everything below runs the same on macOS, Linux and Windows. Where a command
+genuinely differs, both are given: the shell script for macOS and Linux, the
+PowerShell script for Windows. They are equivalent — same contract, same output.
+
+### Prerequisites
+
+| Tool | Version | Checked with |
+| --- | --- | --- |
+| JDK | 17 (Temurin, as in CI) | `java -version` |
+| Maven | 3.9+ | `mvn -v` |
+| Node.js | 22 | `node -v` |
+| Docker | with Compose v2 | `docker compose version` |
+
+`JAVA_HOME` must point at the JDK 17 installation. Docker is needed only for the
+local stack; the test suite runs without it.
+
+macOS, with Homebrew:
+
+```bash
+brew install --cask temurin@17
+brew install maven node@22
+brew install --cask docker    # then start Docker Desktop once
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+```
+
+Windows, with winget:
 
 ```powershell
+winget install EclipseAdoptium.Temurin.17.JDK
+winget install Apache.Maven OpenJS.NodeJS.LTS Docker.DockerDesktop
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17"
+```
+
+### 1. Start the infrastructure
+
+Identical on both systems:
+
+```bash
+docker compose up -d postgres redis kafka keycloak
+```
+
+Wait for the containers to report healthy with `docker compose ps`. Keycloak takes
+the longest; the application will not authenticate anyone until it is up.
+
+### 2. Run the API
+
+```bash
+mvn -pl card-service quarkus:dev
+```
+
+Swagger UI is then at `http://localhost:8080/q/swagger-ui`. Create a card with
+`POST /api/v1/cards` and a unique `Idempotency-Key` header.
+
+### 3. Run the interface
+
+```bash
+cd web-app
+npm ci
+npm start
+```
+
+The interface is at `http://localhost:4200`. Create an account through "Criar minha
+conta", which enters Keycloak's registration screen — the application never sees a
+password.
+
+### 4. Stop
+
+```bash
+docker compose down          # keeps the data
+docker compose down -v       # discards it, which is safe: see ADR-004
+```
+
+## Validate
+
+Set `JAVA_HOME` to a JDK 17 installation, then run — identical on both systems:
+
+```bash
 mvn -B verify
 cd web-app
 npm test
 npm run build
 npm audit --audit-level=high
+```
+
+The benchmarks are excluded from the build, because one that reddens a build on a
+slow machine teaches everyone to ignore it. Run them deliberately:
+
+```bash
+mvn -pl card-service test -Dgroups=benchmark -Dtest.excludedGroups=none
 ```
 
 The automated test profile uses H2 in PostgreSQL compatibility mode for fast
@@ -209,16 +290,6 @@ real migrations and Hibernate validates the mapping against the real column type
 Constraints that the suite relies on are declared on the entity as well as in the
 migration. The test schema is generated from the entities, so a constraint that
 lives only in SQL would be absent exactly where it is being tested.
-
-## Run locally
-
-```powershell
-docker compose up -d postgres redis kafka keycloak
-mvn -pl card-service quarkus:dev
-```
-
-Swagger UI is available at `http://localhost:8080/q/swagger-ui` in development.
-Create a card with `POST /api/v1/cards` and a unique `Idempotency-Key` header.
 
 ## Which database is the real one
 
@@ -241,11 +312,26 @@ Copy `.env.example` to `.env`, fill it in, and run anything through it. Git igno
 printed — a credential typed at a prompt lives on in shell history, which is the
 same mistake in a slower form.
 
+macOS and Linux:
+
+```bash
+cp .env.example .env          # then fill in HOST, DATABASE, USER, PASSWORD
+./scripts/with-env.sh java -jar card-service/target/quarkus-app/quarkus-run.jar
+./scripts/with-env.sh mvn -pl card-service quarkus:dev
+```
+
+Windows:
+
 ```powershell
 Copy-Item .env.example .env   # then fill in HOST, DATABASE, USER, PASSWORD
 powershell -File ./scripts/with-env.ps1 java -jar card-service/target/quarkus-app/quarkus-run.jar
 powershell -File ./scripts/with-env.ps1 mvn -pl card-service quarkus:dev
 ```
+
+A managed instance that has been idle may suspend. The pool gives up after
+`DB_ACQUISITION_TIMEOUT` — five seconds by default — and Flyway then fails the
+start outright, which is what a cold Neon endpoint looks like: one failed boot,
+then a clean one. Raise the variable if a first start has to survive it.
 
 `sslmode=require` is not optional. The connection leaves the machine, and
 without it the driver will happily send the password in the clear; every managed
@@ -303,8 +389,12 @@ CREATE SCHEMA IF NOT EXISTS keycloak;
 
 The `KC_DB_*` variables live in the same `.env`:
 
+```bash
+./scripts/with-env.sh docker compose up -d keycloak            # macOS and Linux
+```
+
 ```powershell
-powershell -File ./scripts/with-env.ps1 docker compose up -d keycloak
+powershell -File ./scripts/with-env.ps1 docker compose up -d keycloak   # Windows
 ```
 
 That accounts survive the container is a claim about recreation, not restart, so it
@@ -312,6 +402,12 @@ is checked rather than assumed:
 
 ```powershell
 powershell -File ./scripts/verify-keycloak-persistence.ps1
+```
+
+On macOS and Linux, run it with PowerShell 7 (`brew install --cask powershell`):
+
+```bash
+pwsh ./scripts/verify-keycloak-persistence.ps1
 ```
 
 It creates an account, destroys and rebuilds the container, and requires that same
@@ -357,7 +453,21 @@ must never be reused anywhere else:
 | --- | --- | --- |
 | `santoandreadmin` | `admin1234` | `admin` |
 
-Obtain a token with the direct grant, which is enabled for local development only:
+Obtain a token with the direct grant, which is enabled for local development only.
+Note the role: this account is `admin`, so it reads the portfolio and issues cards,
+and it is refused on `/api/v1/wallet/*` — those belong to a `customer`. Every
+money-moving call additionally requires an `Idempotency-Key` header.
+
+macOS and Linux, with `curl` and `jq`:
+
+```bash
+token=$(curl -s -X POST   http://localhost:8180/realms/card-platform/protocol/openid-connect/token   -d grant_type=password -d client_id=card-service   -d username=santoandreadmin -d password=admin1234 | jq -r .access_token)
+
+# The portfolio summary is an admin read, which is what this token can do.
+curl -s http://localhost:8080/api/v1/admin/summary   -H "Authorization: Bearer $token"
+```
+
+Windows:
 
 ```powershell
 $body = @{ grant_type='password'; client_id='card-service'
@@ -365,14 +475,14 @@ $body = @{ grant_type='password'; client_id='card-service'
 $token = (Invoke-RestMethod -Method Post `
   "http://localhost:8180/realms/card-platform/protocol/openid-connect/token" `
   -Body $body).access_token
-Invoke-RestMethod -Method Post http://localhost:8080/api/v1/wallet/top-ups `
-  -Headers @{ Authorization = "Bearer $token" } `
-  -ContentType 'application/json' -Body '{"amount":100.00}'
+# The portfolio summary is an admin read, which is what this token can do.
+Invoke-RestMethod http://localhost:8080/api/v1/admin/summary `
+  -Headers @{ Authorization = "Bearer $token" }
 ```
 
-Run the Angular interface separately:
+Run the Angular interface separately, identically on both systems:
 
-```powershell
+```bash
 cd web-app
 npm start
 ```
