@@ -318,6 +318,22 @@ convention: it is one line, and deleting it is an ordinary-looking commit — wh
 has already happened once here. The hook inspects what is actually staged, so it
 holds even when the rule is gone or `git add -f` was used.
 
+### On Windows, clone somewhere short
+
+```powershell
+git clone https://github.com/cezicolaseniorsoftwareengineer/santoandrecard.git C:\dev\santoandrecard
+```
+
+The deepest path in the repository is 110 characters. Windows still applies a
+260-character limit to the whole path unless long paths are enabled, so cloning
+into an already-deep directory fails partway through with `Filename too long`
+and leaves a working tree that looks complete and is not. Either clone somewhere
+short, as above, or enable long paths once:
+
+```powershell
+git config --global core.longpaths true
+```
+
 ### Prerequisites
 
 | Tool | Version | Checked with |
