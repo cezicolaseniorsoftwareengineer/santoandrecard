@@ -219,3 +219,89 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: /language:${{ matrix.language }}
+
+  # The journey a customer actually takes, in a browser, against the real
+  # identity provider. Everything above this job can pass while the deployed
+  # thing is unusable: a redirect that never comes back, a token the API will
+  # not accept, an origin the allow-list forgot. Those only fail here.
+  e2e:
+    name: browser journey
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web-app/package-lock.json
+
+      - name: Start the stack
+        run: docker compose up -d postgres redis kafka keycloak
+
+      - name: Package the API
+        run: mvn -B --no-transfer-progress -DskipTests package
+
+      - name: Wait for the identity provider
+        run: |
+          # Keycloak is the slowest thing here and nothing authenticates until it
+          # answers. Failing loudly after five minutes beats a browser test that
+          # times out on a login page that was never going to appear.
+          for _ in $(seq 1 60); do
+            if curl -sf http://localhost:8180/realms/card-platform/.well-known/openid-configuration > /dev/null; then
+              echo "identity provider is ready"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::the identity provider never became ready"
+          docker compose logs keycloak
+          exit 1
+
+      - name: Start the API
+        env:
+          DB_PASSWORD: card_app_local
+        run: |
+          java -jar card-service/target/quarkus-app/quarkus-run.jar > api.log 2>&1 &
+          echo $! > api.pid
+          for _ in $(seq 1 60); do
+            if curl -sf http://localhost:8080/q/health/ready > /dev/null; then
+              echo "the API is ready"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::the API never became ready"
+          cat api.log
+          exit 1
+
+      - name: Install the front end
+        working-directory: web-app
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run the journey
+        working-directory: web-app
+        run: npm run e2e
+
+      - name: Failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            web-app/playwright-report/
+            web-app/test-results/
+            api.log
+          if-no-files-found: ignore
+
+      - name: Stop the API
+        if: always()
+        run: kill "$(cat api.pid)" 2>/dev/null || true

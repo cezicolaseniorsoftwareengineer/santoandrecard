@@ -3,3 +3,10 @@
 /.angular
 coverage/
 *.log
+
+# Playwright output. Traces, videos and screenshots are evidence for a failing
+# run on the machine that produced it, not repository content.
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/

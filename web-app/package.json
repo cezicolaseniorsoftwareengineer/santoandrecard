@@ -6,7 +6,10 @@
     "start": "ng serve",
     "build": "ng build",
     "test": "ng test --watch=false",
-    "lint": "ng build --configuration development"
+    "lint": "ng build --configuration development",
+    "e2e": "playwright test",
+    "e2e:report": "playwright show-report",
+    "start:e2e": "ng serve --configuration production"
   },
   "dependencies": {
     "@angular/common": "21.2.20",
@@ -22,6 +25,7 @@
     "@angular/build": "21.2.21",
     "@angular/cli": "21.2.21",
     "@angular/compiler-cli": "21.2.20",
+    "@playwright/test": "^1.62.1",
     "jsdom": "27.0.0",
     "typescript": "~5.9.3",
     "vitest": "4.1.10"
