@@ -5,6 +5,7 @@ import { LOCALE_ID } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { AppComponent } from './app/app.component';
 import { authInterceptor } from './app/auth.interceptor';
+import { idempotencyInterceptor } from './app/idempotency.interceptor';
 import { loadRuntimeConfig } from './app/auth.config';
 
 // Registering the locale data is not enough on its own: LOCALE_ID must also be
@@ -17,7 +18,7 @@ loadRuntimeConfig()
   .then(() =>
     bootstrapApplication(AppComponent, {
       providers: [
-        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClient(withInterceptors([authInterceptor, idempotencyInterceptor])),
         { provide: LOCALE_ID, useValue: 'pt-BR' }
       ]
     })

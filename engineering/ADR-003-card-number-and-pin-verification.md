@@ -175,6 +175,7 @@ says nothing about the PIN itself.
 - The throttle's Redis behaviour is covered by unit tests against a stubbed
   datasource (`RedisRateLimiterTest`); it has not been exercised against a real
   Redis server or across replicas.
-- Keycloak-backed identity is configured but not proven end to end, so the
-  `tenantId`/`customerId` these flows trust are currently proven only through
-  `@TestSecurity`-injected identities.
+- Keycloak-backed identity is now proven end to end against the local stack: a
+  real token is accepted, an invalid one refused with 401, and role separation
+  holds. It has not been proven against the canonical database, which is a
+  different deployment of the same configuration.

@@ -255,7 +255,7 @@ the longest; the application will not authenticate anyone until it is up.
 ### 2. Run the API
 
 ```bash
-mvn -pl card-service quarkus:dev
+cd card-service && mvn quarkus:dev
 ```
 
 Swagger UI is then at `http://localhost:8080/q/swagger-ui`. Create a card with
@@ -335,7 +335,7 @@ macOS and Linux:
 ```bash
 cp .env.example .env          # then fill in HOST, DATABASE, USER, PASSWORD
 ./scripts/with-env.sh java -jar card-service/target/quarkus-app/quarkus-run.jar
-./scripts/with-env.sh mvn -pl card-service quarkus:dev
+./scripts/with-env.sh mvn -f card-service/pom.xml quarkus:dev
 ```
 
 Windows:
@@ -343,7 +343,7 @@ Windows:
 ```powershell
 Copy-Item .env.example .env   # then fill in HOST, DATABASE, USER, PASSWORD
 powershell -File ./scripts/with-env.ps1 java -jar card-service/target/quarkus-app/quarkus-run.jar
-powershell -File ./scripts/with-env.ps1 mvn -pl card-service quarkus:dev
+powershell -File ./scripts/with-env.ps1 mvn -f card-service/pom.xml quarkus:dev
 ```
 
 A managed instance that has been idle may suspend. The pool gives up after

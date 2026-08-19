@@ -76,7 +76,7 @@ If it never leaves `starting`, read `docker compose logs keycloak`.
 ### A3. Run the API
 
 ```bash
-mvn -pl card-service quarkus:dev
+cd card-service && mvn quarkus:dev
 ```
 
 Check, in a second terminal:
@@ -164,11 +164,11 @@ The Neon connection string splits into three fields: JDBC does not accept
 ### B2. Prove the credential before anything else
 
 ```bash
-./scripts/with-env.sh mvn -pl card-service quarkus:dev
+./scripts/with-env.sh mvn -f card-service/pom.xml quarkus:dev
 ```
 
 ```powershell
-powershell -File ./scripts/with-env.ps1 mvn -pl card-service quarkus:dev
+powershell -File ./scripts/with-env.ps1 mvn -f card-service/pom.xml quarkus:dev
 ```
 
 Check, in the log:

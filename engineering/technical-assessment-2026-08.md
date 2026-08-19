@@ -61,13 +61,20 @@ quietly dropped.
 
 These are the questions that would be asked, in the order they would be asked.
 
-**"Show me authentication working end to end."** It cannot be shown today. Every
-identity in the test suite is injected through `@TestSecurity`; Keycloak has never
-been proven against the canonical database, and the container will not run on the
-development machine. Authorization logic is well-placed — checks live in the
-application service so no entry point can skip them, and a foreign card is reported
-absent rather than forbidden — but *placement is not proof*. This is the largest gap
-in the project.
+**"Show me authentication working end to end."** Shown, on 2026-08-19, against the
+running stack. A real Keycloak token reaches `/api/v1/admin/summary` and returns
+`200`; no token returns `401`; a malformed one returns `401`; and that same admin
+token on a customer route returns `403`, so roles are enforced rather than merely
+declared. Account persistence was proven the only way it can be — the Keycloak
+container was destroyed and recreated, and an account created beforehand still
+authenticated afterwards.
+
+That exercise found two defects, which is what an end-to-end run is for. The 503
+handler for an unreachable provider was answering 503 to *invalid tokens* as well,
+turning a correct 401 into "try again later". And the Angular interface sent no
+`Idempotency-Key`, so every top-up, card load and purchase it made was refused with
+400: the interface could not move money at all. Both are fixed and covered by
+tests.
 
 **"Where are the numbers?"** There are none for the deployed system: no latency, no
 throughput, no saturation point, no fault-injection run. The only measurement that

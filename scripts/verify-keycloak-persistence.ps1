@@ -98,12 +98,19 @@ try {
     Write-Host "== 2. creating probe account $probeUser =="
     $token = Get-AdminToken
     $headers = @{ Authorization = "Bearer $token"; 'Content-Type' = 'application/json' }
+    # firstName, lastName and an empty requiredActions are not decoration. The
+    # realm requires a complete profile, and an account missing any of them is
+    # refused at the token endpoint with "Account is not fully set up" — which
+    # reads like a persistence failure and is not one.
     $payload = @{
-        username      = $probeUser
-        enabled       = $true
-        emailVerified = $true
-        email         = "$probeUser@example.invalid"
-        credentials   = @(@{ type = 'password'; value = $probePassword; temporary = $false })
+        username        = $probeUser
+        enabled         = $true
+        emailVerified   = $true
+        email           = "$probeUser@example.invalid"
+        firstName       = 'Persistence'
+        lastName        = 'Probe'
+        requiredActions = @()
+        credentials     = @(@{ type = 'password'; value = $probePassword; temporary = $false })
     } | ConvertTo-Json -Depth 5
     Invoke-RestMethod -Method Post -Headers $headers -Uri "$BaseUrl/admin/realms/$Realm/users" -Body $payload | Out-Null
 

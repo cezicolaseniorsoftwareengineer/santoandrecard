@@ -102,9 +102,9 @@ and the evidence that the revocation took effect are in
   exploratory work land on the only durable copy — with no backup drill behind it.
   Acceptable while the data is fictitious; it is the first thing to change when it
   is not.
-- Keycloak against the canonical database is configured but not proven end to end:
-  no run has demonstrated that an account created before a container recreation
-  still authenticates after it. Proof requires Docker, which is currently
-  unavailable on the development machine.
+- Account persistence across container recreation is proven, but against the
+  **local** Compose database, not the canonical one:
+  `scripts/verify-keycloak-persistence.ps1` passed on 2026-08-19. Pointing the same
+  check at Neon is one environment variable away and has not been run.
 - No backup or restore drill has been run against Neon, and ADR-002 requires one
   before the release gates can pass.

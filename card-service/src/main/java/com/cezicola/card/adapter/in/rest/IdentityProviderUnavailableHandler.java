@@ -65,9 +65,30 @@ public class IdentityProviderUnavailableHandler {
                         .encode());
     }
 
+    /**
+     * Whether the failure is the provider being unreachable, and not a token
+     * the provider would have rejected.
+     *
+     * <p>{@link OIDCException} alone is not the test. It is raised for a
+     * malformed or unverifiable token as well, and treating that as an outage
+     * answered 503 to a caller whose credential was simply wrong — telling them
+     * to retry something that will never succeed, and hiding a 401 that was
+     * correct. The connectivity failure underneath is what distinguishes them.
+     */
     private static boolean rootCauseIsProviderUnavailable(Throwable failure) {
+        boolean oidcFailure = false;
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
             if (cause instanceof OIDCException) {
+                oidcFailure = true;
+            }
+            if (cause instanceof java.net.ConnectException
+                    || cause instanceof java.net.UnknownHostException
+                    || cause instanceof java.net.SocketTimeoutException
+                    || cause instanceof io.netty.channel.ConnectTimeoutException) {
+                return oidcFailure;
+            }
+            String message = cause.getMessage();
+            if (message != null && message.contains("OIDC Server is not available")) {
                 return true;
             }
             if (cause.getCause() == cause) {
