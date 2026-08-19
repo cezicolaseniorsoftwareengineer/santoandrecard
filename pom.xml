@@ -19,13 +19,46 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.version>3.33.3</quarkus.platform.version>
+        <opentelemetry.version>1.62.0</opentelemetry.version>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
+        <jacoco-plugin.version>0.8.13</jacoco-plugin.version>
         <!-- Benchmarks are excluded from the normal build; set to "none" to include them. -->
         <test.excludedGroups>benchmark</test.excludedGroups>
+        <!--
+            Coverage floors, set from what the suite actually reaches rather
+            than from what would sound good: 84% of instructions and 59% of
+            branches across the bundle at the time of writing. Each floor sits
+            just under the measurement, so the gate catches erosion on the next
+            commit instead of failing on this one.
+
+            Raised when the suite earns it. Never lowered to make a build pass —
+            a floor that moves down to meet the code is not a floor.
+        -->
+        <coverage.instruction.minimum>0.82</coverage.instruction.minimum>
+        <coverage.branch.minimum>0.57</coverage.branch.minimum>
+        <coverage.domain.minimum>0.82</coverage.domain.minimum>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!--
+                GHSA-rcgg-9c38-7xpx, and the reason this is a BOM rather than the
+                single pinned artifact it started as.
+
+                Raising opentelemetry-api on its own left the API at one version
+                and the SDK and context at the platform's, which compiles and
+                then fails at startup on a class the newer API expects the older
+                core to provide. A tracing stack is one artifact set or it is
+                broken; the BOM is what says so. Declared before the Quarkus
+                platform because the first import in dependencyManagement wins.
+            -->
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>${opentelemetry.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>io.quarkus.platform</groupId>
                 <artifactId>quarkus-bom</artifactId>
@@ -55,12 +88,6 @@
                 <artifactId>lz4-java</artifactId>
                 <version>1.11.1</version>
             </dependency>
-            <dependency>
-                <!-- GHSA-rcgg-9c38-7xpx -->
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-api</artifactId>
-                <version>1.62.0</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -75,6 +102,11 @@
                         <release>${maven.compiler.release}</release>
                         <parameters>true</parameters>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
