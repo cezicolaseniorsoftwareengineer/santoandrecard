@@ -92,6 +92,60 @@ services:
       timeout: 5s
       retries: 20
 
+  # Observability. Kept behind a profile so the everyday bring-up stays small:
+  #   docker compose --profile observability up -d
+  # Prometheus holds the numbers, Tempo holds the traces, Grafana shows both and
+  # arrives with the dashboard already provisioned — a dashboard nobody has to
+  # rebuild by hand is the only kind that survives.
+  prometheus:
+    image: prom/prometheus:v3.6.0
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=24h
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      # The service runs on the host during development, so the scrape target
+      # has to resolve back out of the container.
+      - "host.docker.internal:host-gateway"
+
+  tempo:
+    image: grafana/tempo:2.9.0
+    profiles: ["observability"]
+    command: ["-config.file=/etc/tempo.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    profiles: ["observability"]
+    depends_on:
+      - prometheus
+      - tempo
+    environment:
+      # Anonymous viewing on a local stack only. This exposes dashboards, never
+      # the application or its data, and must not be carried anywhere else.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-grafana_local}
+      GF_USERS_DEFAULT_THEME: dark
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
 volumes:
   postgres-data:
   kafka-data:
+  prometheus-data:
+  tempo-data:

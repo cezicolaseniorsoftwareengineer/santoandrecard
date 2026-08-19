@@ -1,0 +1,160 @@
+{
+  "uid": "card-platform-money",
+  "title": "Card Platform — money and refusals",
+  "description": "Business outcomes rather than process health. The JVM panels tell you the service is alive; these tell you it is working. Amounts are stored in centavos and divided by 100 here, because money does not survive a double.",
+  "tags": ["card-platform"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "card-prometheus" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Money moved per minute, by operation",
+      "description": "A top-up, a card load and a purchase are different events with different meanings. Summing them into one line hides the one that stopped.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "currencyBRL", "custom": { "fillOpacity": 10, "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation) (rate(card_money_moved_centavos_total[5m])) * 60 / 100",
+          "legendFormat": "{{operation}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Refusals per minute, by reason",
+      "description": "The panel that matters at three in the morning. A service can answer every request in ten milliseconds while refusing every one of them.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 20, "lineWidth": 2, "stacking": { "mode": "normal" } } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation, reason) (rate(card_operations_refused_total[5m])) * 60",
+          "legendFormat": "{{operation}} — {{reason}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Authorizations held, captured and released",
+      "description": "The two-step flow, in money. Held that is never captured or released is money sitting on a customer's card.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyBRL" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "rate(card_authorization_held_centavos_total[5m]) * 60 / 100", "legendFormat": "held" },
+        { "refId": "B", "expr": "rate(card_authorization_captured_centavos_total[5m]) * 60 / 100", "legendFormat": "captured" },
+        { "refId": "C", "expr": "rate(card_authorization_released_centavos_total[5m]) * 60 / 100", "legendFormat": "released" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Authorization outcomes",
+      "description": "How authorizations end: captured, reversed or expired by the sweep. A rising expiry share means holds are not being settled.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (outcome) (rate(card_authorization_settlements_total[5m])) * 60", "legendFormat": "{{outcome}}" },
+        { "refId": "B", "expr": "sum by (outcome) (rate(card_authorization_decisions_total[5m])) * 60", "legendFormat": "decision: {{outcome}}" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Outbox — events published and refused",
+      "description": "The outbox guarantees an event about money is never lost, not that the broker is healthy. A non-zero failure line is an operator's problem, not garbage to discard.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "rate(card_outbox_published_total[5m]) * 60", "legendFormat": "published/min" },
+        { "refId": "B", "expr": "rate(card_outbox_delivery_failures_total[5m]) * 60", "legendFormat": "refused/min" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Request latency, 99th percentile",
+      "description": "The tail, not the average. The average is what most requests felt; the tail is what a customer complains about.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le, uri) (rate(http_server_requests_seconds_bucket{uri=~\"/api.*\"}[5m])))",
+          "legendFormat": "{{uri}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Card number collisions",
+      "description": "Expected to stay at zero. A rising count means the number space is smaller than it looks, or generation is not as random as assumed.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [ { "refId": "A", "expr": "sum(card_number_collisions_total)", "legendFormat": "collisions" } ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "PIN verification outcomes",
+      "description": "Four digits is ten thousand possibilities. A climbing failure line against one card is an online guessing attempt, and the attempt budget is what stops it.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 9, "x": 6, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (outcome) (rate(card_pin_verifications_total[5m])) * 60", "legendFormat": "{{outcome}}" }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Outbox drain, 99th percentile",
+      "description": "How long a batch takes to reach the broker. It bounds how stale a downstream consumer's view of the money can be.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 9, "x": 15, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(card_outbox_drain_seconds_bucket[5m])))",
+          "legendFormat": "p99"
+        }
+      ]
+    }
+  ]
+}

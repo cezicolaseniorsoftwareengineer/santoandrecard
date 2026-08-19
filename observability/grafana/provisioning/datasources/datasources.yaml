@@ -1,0 +1,20 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: card-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+
+  - name: Tempo
+    type: tempo
+    uid: card-tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # Links a trace's span back to the metric series it belongs to, so a slow
+      # purchase in the dashboard opens the trace that produced it.
+      tracesToMetrics:
+        datasourceUid: card-prometheus

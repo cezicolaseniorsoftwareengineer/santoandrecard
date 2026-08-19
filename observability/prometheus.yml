@@ -1,0 +1,20 @@
+# Scrape configuration for the local stack. The service already exposes
+# /q/metrics; this is what turns those numbers into a series with history.
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: card-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          service: card-service
+    # The service runs on the host during development and inside the cluster in
+    # Kubernetes. Keeping the label here means the dashboard queries do not have
+    # to change between the two.
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: card-service

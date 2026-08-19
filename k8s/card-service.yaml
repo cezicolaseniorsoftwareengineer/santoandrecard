@@ -66,6 +66,22 @@ spec:
                 secretKeyRef:
                   name: card-service-secrets
                   key: db-password
+            # Tracing is off until a collector is named. A service that cannot
+            # reach its exporter must not spend request time discovering that,
+            # and a cluster without one should not pay for the attempt.
+            - name: OTEL_ENABLED
+              value: "false"
+            - name: OTEL_ENDPOINT
+              value: http://tempo.observability.svc.cluster.local:4317
+            - name: OTEL_ENVIRONMENT
+              value: kubernetes
+            # Every request traced is right for a demonstration and wrong for a
+            # deployment that takes load. Stated here so lowering it is a value
+            # change rather than a rebuild.
+            - name: OTEL_SAMPLER
+              value: parentbased_traceidratio
+            - name: OTEL_SAMPLER_RATIO
+              value: "0.1"
           # The 1s default probe timeout is shorter than a JVM start on a
           # contended node, and the startup budget has to cover Flyway running
           # the migrations. Both were too tight to boot here, so the timeout and
