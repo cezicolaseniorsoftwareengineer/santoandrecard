@@ -76,9 +76,10 @@ Neon:
   with the conditions that end it. Deferring is a decision someone owns; forgetting
   is not.
 
-One credential is currently compromised and its rotation deferred under exactly that
-rule; the record, the blast radius and the conditions that end the deferral are in
-`engineering/credential-rotation-log.md`.
+One credential was compromised and has been rotated; the record, the blast radius
+and the evidence that the revocation took effect are in
+`engineering/credential-rotation-log.md`, and the procedure is in
+`engineering/runbook-rotate-database-credential.md`.
 
 ## Alternatives rejected
 
@@ -97,9 +98,6 @@ rule; the record, the blast radius and the conditions that end the deferral are 
 
 ## Open items
 
-- The canonical credential is compromised and knowingly unrotated. Until it is
-  rotated, the ADR-002 release gate on secret handling cannot pass, regardless of
-  what else is proven.
 - Development runs directly against the canonical instance, so migrations and
   exploratory work land on the only durable copy — with no backup drill behind it.
   Acceptable while the data is fictitious; it is the first thing to change when it

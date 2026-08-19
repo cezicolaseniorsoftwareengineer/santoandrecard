@@ -91,10 +91,10 @@ designed and absent. That is legitimate sequencing, not a defect — but the ADR
 as a platform while the code is a card and wallet core, and the gap must be stated
 rather than implied.
 
-**"Secrets."** A compromised credential is knowingly unrotated in a public
-repository's development flow. It is recorded with the conditions that end the
-deferral, which is the right way to hold a deliberate risk — and it is still an open
-risk.
+**"Secrets."** The one credential that was exposed has been rotated, and the
+revocation was verified by trying the old password rather than trusting the console.
+What remains is process rather than incident: the connection logs for the exposure
+window have not been reviewed, so "nobody used it" is still an assumption.
 
 ## 4. Where it sits
 
@@ -131,9 +131,10 @@ The differentiator is that **the reasoning is auditable**. Three things carry th
    be verified — each with the reasoning attached.
 
 3. **Claims are separated from proof.** The repository states what is measured, what
-   is reasoned, and what is untested. The credential log records a deferred risk as
-   a decision rather than hiding it, and a measurement that contradicted an earlier
-   claim was written down as such.
+   is reasoned, and what is untested. A measurement that contradicted an earlier
+   claim was written down as such, and the credential log records an incident, the
+   decision to defer it, and the rotation that closed it — including the evidence
+   that the old password was actually refused rather than reported revoked.
 
 For its stated purpose — demonstrating engineering judgement in a financial domain —
 that is the right differentiator, and it is more defensible than any feature would

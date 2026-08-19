@@ -27,25 +27,29 @@ host, the user and `npg_`: the README documents the shape with `HOST`/`DATABASE`
 manifest carries the value. History was never rewritten because the value was never
 committed. The exposure is the chat transcript alone.
 
-**Action — deferred, by decision.** Rotation was raised on 2026-08-18 and the
-operator deferred it: the platform is in development, the database holds only
-fictitious money and no third party's data, and the credential is still needed for
-active work against the canonical instance. That is a legitimate call at this stage
-and it is recorded as a decision rather than left as an open task.
+**Action — rotated 2026-08-18.** Rotation was first deferred by the operator, on
+the grounds that the platform was in development with fictitious money and nobody
+else's data. It was then carried out the same day, before the work was published to
+the public GitHub repository: the documents describing this exposure were about to
+become readable by anyone, and a public record of a live compromised credential is
+an invitation rather than a disclosure.
 
-The credential therefore **remains live and remains compromised**. It is held in a
-git-ignored `.env` at the repository root (`.env.example` documents the shape) and
-loaded per-process by `scripts/with-env.ps1`, which prints variable names and never
-values. On disk and ignored is the recoverable form of this exposure; committed is
-the unrecoverable one, and the distinction is the whole reason for the arrangement.
+Reset through the Neon console on the `neondb_owner` role. **Verified, not assumed**
+— the old password was tried against the instance and refused with
+`password authentication failed`, which is the evidence that the revocation took
+effect rather than the console merely reporting success. The new credential connects
+for both `card-service` and Keycloak, and the schema is unchanged: 10 tables, Flyway
+at v11, the `keycloak` schema still present.
 
-**Conditions that end the deferral.** Any one of these makes rotation immediate
-rather than scheduled:
+**The old password is now inert.** It still exists in two assistant chat
+transcripts and in terminal scrollback, and those copies no longer matter — which is
+the reason rotation is the fix and deleting the copies never was.
 
-- the database begins holding anything belonging to a real person;
-- the instance is shown to anyone outside the operator, including in a demonstration;
-- an unrecognised connection appears in Neon's logs;
-- the platform is presented as anything other than a development sandbox.
+**One thing rotation exposed.** Only `KC_DB_PASSWORD` was updated in `.env` at
+first; `DB_PASSWORD` still held the revoked value. Identity would have worked while
+money failed — the half-outage the runbook warns about, and the reason step 3 of
+that runbook tests both credentials separately rather than starting the application
+and calling a clean boot proof.
 
 **Second exposure, 2026-08-18.** The same credential was pasted into an assistant
 chat a second time, while setting up `.env`. It does not widen the blast radius —
@@ -56,8 +60,8 @@ money, still deferred by the same decision and the same conditions.
 
 **Follow-up not yet done.** Neon's connection logs have not been reviewed for
 sessions from unrecognised addresses during the exposure window. Until that review
-happens, "no access occurred" is an assumption, not a finding — and while rotation
-is deferred, that window has no end.
+happens, "no access occurred" is an assumption, not a finding. The window is now
+closed at both ends, so the review is bounded and still worth doing.
 
 **What changed so it does not recur.** The rule was written down rather than left as
 a habit: ADR-004 states that the canonical credential lives only in the environment
