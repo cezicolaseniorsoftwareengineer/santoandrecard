@@ -194,6 +194,20 @@ Everything below runs the same on macOS, Linux and Windows. Where a command
 genuinely differs, both are given: the shell script for macOS and Linux, the
 PowerShell script for Windows. They are equivalent — same contract, same output.
 
+### Enable the commit guard first
+
+One command, once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`.githooks/pre-commit` refuses to commit `.env`, anything under `secrets/`, and
+the operator prompt file. `.gitignore` already lists them, but an ignore rule is a
+convention: it is one line, and deleting it is an ordinary-looking commit — which
+has already happened once here. The hook inspects what is actually staged, so it
+holds even when the rule is gone or `git add -f` was used.
+
 ### Prerequisites
 
 | Tool | Version | Checked with |
