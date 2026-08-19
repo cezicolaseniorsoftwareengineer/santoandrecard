@@ -1,9 +1,9 @@
-import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
+import { CommonModule, CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from './auth.service';
 import { BrlInputDirective } from './brl-input.directive';
-import { BankStore } from './bank-store.service';
+import { BankStore, MAX_INSTALLMENTS } from './bank-store.service';
 import { MerchantCategory, PurchaseQuote } from './bank.models';
 
 type CustomerView = 'overview' | 'shopping' | 'statement';
@@ -11,7 +11,7 @@ type CustomerView = 'overview' | 'shopping' | 'statement';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, BrlInputDirective],
+  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, PercentPipe, BrlInputDirective],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -40,6 +40,14 @@ export class AppComponent implements OnInit {
   installments = 3;
   monthlyRate = 0.0199;
   readonly categories: readonly MerchantCategory[] = ['Shopping', 'Padaria', 'Açougue', 'Restaurante', 'Farmácia'];
+
+  /**
+   * Every count the product offers, from cash up to the ceiling. Derived from the
+   * same constant the store validates against, so the options offered and the
+   * options accepted cannot drift apart.
+   */
+  readonly installmentOptions: readonly number[] =
+    Array.from({ length: MAX_INSTALLMENTS }, (_, index) => index + 1);
 
   /** Long enough for the mark to register, short enough not to be a delay. */
   private static readonly SPLASH_MS = 1100;

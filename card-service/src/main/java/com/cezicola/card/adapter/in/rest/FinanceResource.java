@@ -87,13 +87,22 @@ public class FinanceResource {
         return service.setInterestPolicy(caller.tenantId(), request.monthlyRate());
     }
 
+    /**
+     * The rate in force, readable by customer and administrator alike. The
+     * instalment screen states the rate it prices with, and it can only do that
+     * if it can read it.
+     */
+    @GET @Path("/interest-policy")
+    @RolesAllowed({Roles.CUSTOMER, Roles.ADMIN})
+    public Object interestPolicy() { return service.interestPolicy(caller.tenantId()); }
+
     @GET @Path("/admin/summary")
     @RolesAllowed(Roles.ADMIN)
     public Object summary() { return service.adminSummary(caller.tenantId()); }
 
     public record TopUpRequest(@NotNull @DecimalMin("0.01") BigDecimal amount) {}
-    public record QuoteRequest(@NotNull @DecimalMin("0.01") BigDecimal amount, @Min(1) @Max(24) int installments) {}
+    public record QuoteRequest(@NotNull @DecimalMin("0.01") BigDecimal amount, @Min(1) @Max(12) int installments) {}
     public record PurchaseRequest(@NotBlank @Size(max=64) String merchantCategory,
-                                  @NotNull @DecimalMin("0.01") BigDecimal amount, @Min(1) @Max(24) int installments) {}
-    public record InterestPolicyRequest(@NotNull @DecimalMin("0.0") @DecimalMax("1.0") BigDecimal monthlyRate) {}
+                                  @NotNull @DecimalMin("0.01") BigDecimal amount, @Min(1) @Max(12) int installments) {}
+    public record InterestPolicyRequest(@NotNull @DecimalMin("0.0") @DecimalMax("0.60") BigDecimal monthlyRate) {}
 }

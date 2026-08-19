@@ -20,5 +20,9 @@ public class PurchaseEntity {
     @Column(nullable = false, precision = 19, scale = 2) public BigDecimal total;
     @Column(nullable = false) public int installments;
     @Column(name = "installment_amount", nullable = false, precision = 19, scale = 2) public BigDecimal installmentAmount;
+    /** Carries the rounding remainder, so the instalments add up to the total. */
+    @Column(name = "last_installment_amount", nullable = false, precision = 19, scale = 2) public BigDecimal lastInstallmentAmount;
+    /** The administered rate this purchase was priced under, kept for audit. */
+    @Column(name = "monthly_rate", nullable = false, precision = 9, scale = 6) public BigDecimal monthlyRate;
     @Column(name = "created_at", nullable = false) public Instant createdAt;
 }

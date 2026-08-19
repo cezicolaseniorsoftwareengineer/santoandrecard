@@ -99,7 +99,7 @@ public class FinanceService {
         WalletEntity wallet = lockedWallet(tenantId, customerId);
         if (wallet == null || wallet.balance.compareTo(amount) < 0) {
             metrics.refused("card_load", "insufficient_funds");
-            throw new InsufficientFundsException();
+            throw InsufficientFundsException.wallet();
         }
         wallet.balance = wallet.balance.subtract(amount);
         metrics.moneyMoved("card_load", amount);
@@ -156,12 +156,17 @@ public class FinanceService {
             metrics.refused("purchase", "network_unavailable");
             throw new MerchantAuthorizationUnavailableException();
         }
-        WalletEntity wallet = lockedWallet(tenantId, customerId);
-        if (wallet == null || wallet.balance.compareTo(plan.total()) < 0) {
+
+        // The card is what pays. The wallet row is still locked first, but only as
+        // the per-customer mutex: the spendable figure is a sum over postings, so
+        // there is no row of its own to lock, and without serialising here two
+        // concurrent purchases could both read the same balance and both pass.
+        lockedWallet(tenantId, customerId);
+        BigDecimal available = cardBalance(tenantId, customerId);
+        if (available.compareTo(plan.total()) < 0) {
             metrics.refused("purchase", "insufficient_funds");
-            throw new InsufficientFundsException();
+            throw InsufficientFundsException.card();
         }
-        wallet.balance = wallet.balance.subtract(plan.total());
         metrics.moneyMoved("purchase", plan.total());
         PurchaseEntity purchase = new PurchaseEntity();
         purchase.id = UUID.randomUUID();
@@ -173,15 +178,17 @@ public class FinanceService {
         purchase.total = plan.total();
         purchase.installments = plan.installments();
         purchase.installmentAmount = plan.installmentAmount();
+        purchase.lastInstallmentAmount = plan.lastInstallmentAmount();
+        purchase.monthlyRate = plan.monthlyRate();
         purchase.createdAt = clock.instant();
         entityManager.persist(purchase);
 
-        // The wallet pays the full amount; the principal becomes a debt to the
+        // The card pays the full amount; the principal becomes a debt to the
         // merchant and the interest becomes revenue. Splitting the credit side is
         // what makes interest visible in the book instead of being buried in a
         // single net movement.
         var postings = new java.util.ArrayList<JournalEntry.Posting>();
-        postings.add(JournalEntry.Posting.debit(LedgerAccount.CUSTOMER_WALLET, customerId, plan.total()));
+        postings.add(JournalEntry.Posting.debit(LedgerAccount.CARD_PREPAID, customerId, plan.total()));
         postings.add(JournalEntry.Posting.credit(LedgerAccount.MERCHANT_PAYABLE, null, plan.principal()));
         if (plan.interest().signum() > 0) {
             postings.add(JournalEntry.Posting.credit(LedgerAccount.INTEREST_REVENUE, null, plan.interest()));
@@ -193,16 +200,17 @@ public class FinanceService {
                 json("purchaseId", purchase.id, "customerId", customerId,
                         "merchantCategory", purchase.merchantCategory, "principal", plan.principal(),
                         "interest", plan.interest(), "total", plan.total(),
-                        "installments", plan.installments()));
+                        "installments", plan.installments(),
+                        "monthlyRate", plan.monthlyRate()));
 
-        return PurchaseView.from(purchase, wallet.balance);
+        return PurchaseView.from(purchase, cardBalance(tenantId, customerId));
     }
 
     @Transactional
     public InterestPolicyView setInterestPolicy(UUID tenantId, BigDecimal monthlyRate) {
-        if (monthlyRate == null || monthlyRate.signum() < 0 || monthlyRate.compareTo(BigDecimal.ONE) > 0
-                || monthlyRate.scale() > 6) {
-            throw new IllegalArgumentException("monthlyRate must be between 0 and 1 with at most 6 decimals");
+        InterestCalculator.requireRate(monthlyRate);
+        if (monthlyRate.scale() > 6) {
+            throw new IllegalArgumentException("monthlyRate must carry at most 6 decimals");
         }
         InterestPolicyEntity policy = entityManager.find(InterestPolicyEntity.class, tenantId);
         if (policy == null) {
@@ -216,6 +224,19 @@ public class FinanceService {
         policy.monthlyRate = monthlyRate;
         policy.updatedAt = clock.instant();
         return new InterestPolicyView(monthlyRate, policy.updatedAt);
+    }
+
+    /**
+     * The rate in force. Readable by the customer as well as the administrator:
+     * an interface that prices an instalment plan has to be able to state the
+     * rate it was priced under, and a rate the customer cannot see is a rate the
+     * customer cannot check.
+     */
+    public InterestPolicyView interestPolicy(UUID tenantId) {
+        InterestPolicyEntity policy = entityManager.find(InterestPolicyEntity.class, tenantId);
+        return policy == null
+                ? new InterestPolicyView(BigDecimal.ZERO.setScale(6), null)
+                : new InterestPolicyView(policy.monthlyRate, policy.updatedAt);
     }
 
     /** Wallet of the calling customer. A customer with no wallet yet reads zero. */
@@ -339,10 +360,12 @@ public class FinanceService {
     }
     public record PurchaseView(UUID id, UUID customerId, String merchantCategory, BigDecimal principal,
                                BigDecimal interest, BigDecimal total, int installments,
-                               BigDecimal installmentAmount, BigDecimal remainingWalletBalance, Instant createdAt) {
-        static PurchaseView from(PurchaseEntity p, BigDecimal balance) {
+                               BigDecimal installmentAmount, BigDecimal lastInstallmentAmount,
+                               BigDecimal monthlyRate, BigDecimal remainingCardBalance, Instant createdAt) {
+        static PurchaseView from(PurchaseEntity p, BigDecimal cardBalance) {
             return new PurchaseView(p.id, p.customerId, p.merchantCategory, p.principal, p.interest,
-                    p.total, p.installments, p.installmentAmount, balance, p.createdAt);
+                    p.total, p.installments, p.installmentAmount, p.lastInstallmentAmount,
+                    p.monthlyRate, cardBalance, p.createdAt);
         }
     }
 }

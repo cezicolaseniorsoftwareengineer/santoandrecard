@@ -51,6 +51,10 @@ export interface PurchaseQuote {
   readonly total: number;
   readonly installments: number;
   readonly installmentAmount: number;
+  /** Carries the rounding remainder, so the instalments add up to the total. */
+  readonly lastInstallmentAmount: number;
+  /** The administered rate this plan was priced with. */
+  readonly monthlyRate: number;
 }
 
 export interface PurchaseResponse {
@@ -62,8 +66,14 @@ export interface PurchaseResponse {
   readonly total: number;
   readonly installments: number;
   readonly installmentAmount: number;
-  /** Present only on the response that created the purchase, absent on statements. */
-  readonly remainingWalletBalance: number | null;
+  readonly lastInstallmentAmount: number;
+  readonly monthlyRate: number;
+  /**
+   * Card balance left after the purchase. The card is what pays, so this is the
+   * figure that changed. Present only on the response that created the purchase,
+   * absent on statements.
+   */
+  readonly remainingCardBalance: number | null;
   readonly createdAt: string;
 }
 
@@ -76,5 +86,6 @@ export interface AdminSummary {
 
 export interface InterestPolicy {
   readonly monthlyRate: number;
-  readonly updatedAt: string;
+  /** Null until an administrator has set a rate for the tenant. */
+  readonly updatedAt: string | null;
 }

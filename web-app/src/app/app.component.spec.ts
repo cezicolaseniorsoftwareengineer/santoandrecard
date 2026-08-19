@@ -54,7 +54,9 @@ async function render(session: Session | null): Promise<ComponentFixture<AppComp
         status: 'ACTIVE', product: 'PLATINUM', productName: 'Santo André Card Platinum',
         lastFourDigits: '9808', pinDefined: false, createdAt: '2026-08-17T00:00:00Z'
       }]),
-      answer(http, `${API_BASE_URL}/purchases?limit=50`, [])
+      answer(http, `${API_BASE_URL}/purchases?limit=50`, []),
+      // The purchase screen states the rate it prices with, so it reads it on boot.
+      answer(http, `${API_BASE_URL}/interest-policy`, { monthlyRate: 0.0199, updatedAt: '2026-08-17T00:00:00Z' })
     ]);
   }
 
@@ -80,10 +82,11 @@ describe('AppComponent', () => {
     const fixture = await render({ name: 'Ana Cardoso', role: 'CUSTOMER' });
     const text: string = fixture.nativeElement.textContent;
 
-    expect(text).toContain('Saldo disponível');
+    expect(text).toContain('Saldo em carteira');
+    // The card balance is the money that can actually be spent.
+    expect(text).toContain('Disponível para compra no cartão');
     expect(text).toContain('Ana Cardoso');
     expect(text).toContain('9808');
-    expect(text).toContain('No cartão pré-pago');
     // Without a PIN the card offers to create one rather than to reveal.
     expect(text).toContain('criar seu PIN');
     // The full number never travels with the card itself.
@@ -109,7 +112,7 @@ describe('AppComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.starting()).toBe(false);
-    expect(fixture.nativeElement.textContent).toContain('Saldo disponível');
+    expect(fixture.nativeElement.textContent).toContain('Saldo em carteira');
   }, 15000);
 
   it('shows consolidated figures and no wallet actions for an administrator', async () => {

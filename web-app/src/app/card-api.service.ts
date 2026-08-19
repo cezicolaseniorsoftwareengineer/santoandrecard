@@ -56,6 +56,11 @@ export class CardApi {
     return this.http.get<AdminSummary>(`${API_BASE_URL}/admin/summary`);
   }
 
+  /** The rate in force. Readable by customer and administrator alike. */
+  interestPolicy(): Observable<InterestPolicy> {
+    return this.http.get<InterestPolicy>(`${API_BASE_URL}/interest-policy`);
+  }
+
   setInterestPolicy(monthlyRate: number): Observable<InterestPolicy> {
     return this.http.put<InterestPolicy>(`${API_BASE_URL}/admin/interest-policy`, { monthlyRate });
   }

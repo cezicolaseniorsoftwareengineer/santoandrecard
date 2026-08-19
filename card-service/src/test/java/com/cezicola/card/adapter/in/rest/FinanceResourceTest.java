@@ -41,11 +41,18 @@ class FinanceResourceTest {
                 .body("{\"amount\":200.00}")
                 .header("Idempotency-Key", key()).post("/api/v1/wallet/top-ups").then().statusCode(201).body("balance", equalTo(200.00f));
 
+        // The card is what pays for a purchase, so the money has to reach it first.
+        given().contentType(ContentType.JSON)
+                .body("{\"amount\":200.00}")
+                .header("Idempotency-Key", key()).post("/api/v1/wallet/card-loads").then().statusCode(201)
+                .body("cardBalance", equalTo(200.00f));
+
         given().contentType(ContentType.JSON)
                 .body("{\"merchantCategory\":\"BAKERY\",\"amount\":100.00,\"installments\":2}")
                 .header("Idempotency-Key", key()).post("/api/v1/purchases").then().statusCode(201)
                 .body("customerId", equalTo("c0000001-0000-0000-0000-000000000001"))
-                .body("remainingWalletBalance", equalTo(79.00f));
+                .body("monthlyRate", equalTo(0.10f))
+                .body("remainingCardBalance", equalTo(79.00f));
     }
 
     @Test

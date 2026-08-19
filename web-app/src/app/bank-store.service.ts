@@ -5,6 +5,12 @@ import { AuthService } from './auth.service';
 import { CardApi } from './card-api.service';
 import { AdminSummary, CardResponse, PurchaseQuote, PurchaseResponse } from './bank.models';
 
+/** Product rule: a purchase is paid in cash or split over at most twelve months. */
+export const MAX_INSTALLMENTS = 12;
+
+/** Ceiling on the administered monthly rate: 0.60 is 60% a month. */
+export const MAX_MONTHLY_RATE = 0.6;
+
 /**
  * Application state backed by the card-service API. Every figure shown in the
  * interface comes from a response; nothing is computed locally, so the interface
@@ -23,6 +29,8 @@ export class BankStore {
   readonly cards = signal<readonly CardResponse[]>([]);
   readonly purchases = signal<readonly PurchaseResponse[]>([]);
   readonly adminSummary = signal<AdminSummary | null>(null);
+  /** The administered rate in force. Null until it has been read from the API. */
+  readonly monthlyRate = signal<number | null>(null);
   readonly loading = signal(false);
 
   readonly card = computed(() => this.cards()[0] ?? null);
@@ -39,16 +47,24 @@ export class BankStore {
     this.loading.set(true);
     try {
       if (role === 'ADMIN') {
-        this.adminSummary.set(await firstValueFrom(this.api.adminSummary()));
+        const [summary, policy] = await Promise.all([
+          firstValueFrom(this.api.adminSummary()),
+          firstValueFrom(this.api.interestPolicy())
+        ]);
+        this.adminSummary.set(summary);
+        this.monthlyRate.set(policy.monthlyRate);
         return null;
       }
-      const [wallet, cards, purchases] = await Promise.all([
+      const [wallet, cards, purchases, policy] = await Promise.all([
         firstValueFrom(this.api.wallet()),
         firstValueFrom(this.api.cards()),
-        firstValueFrom(this.api.statement())
+        firstValueFrom(this.api.statement()),
+        // The purchase screen states the rate it prices with, so it has to read it.
+        firstValueFrom(this.api.interestPolicy())
       ]);
       this.balance.set(wallet.balance);
       this.cardBalance.set(wallet.cardBalance);
+      this.monthlyRate.set(policy.monthlyRate);
       this.cards.set(cards);
       this.purchases.set(purchases);
       return null;
@@ -136,8 +152,8 @@ export class BankStore {
   /** Asks the API for the quote; interest is never calculated in the browser. */
   async quote(amount: number, installments: number): Promise<PurchaseQuote | string> {
     if (!Number.isFinite(amount) || amount <= 0) return 'Informe um valor maior que zero.';
-    if (!Number.isInteger(installments) || installments < 1 || installments > 24) {
-      return 'O parcelamento aceita de 1 a 24 parcelas.';
+    if (!Number.isInteger(installments) || installments < 1 || installments > MAX_INSTALLMENTS) {
+      return `O parcelamento aceita de 1 a ${MAX_INSTALLMENTS} parcelas.`;
     }
     try {
       return await firstValueFrom(this.api.quote(round(amount), installments));
@@ -149,7 +165,8 @@ export class BankStore {
   async purchase(category: string, amount: number, installments: number): Promise<string | null> {
     try {
       const purchase = await firstValueFrom(this.api.purchase(category, round(amount), installments));
-      if (purchase.remainingWalletBalance !== null) this.balance.set(purchase.remainingWalletBalance);
+      // The card pays, so the card balance is the figure that moved.
+      if (purchase.remainingCardBalance !== null) this.cardBalance.set(purchase.remainingCardBalance);
       this.purchases.update(items => [purchase, ...items]);
       return null;
     } catch (error) {
@@ -158,11 +175,12 @@ export class BankStore {
   }
 
   async setInterestPolicy(monthlyRate: number): Promise<string | null> {
-    if (!Number.isFinite(monthlyRate) || monthlyRate < 0 || monthlyRate > 1) {
-      return 'A taxa mensal deve estar entre 0 e 1.';
+    if (!Number.isFinite(monthlyRate) || monthlyRate < 0 || monthlyRate > MAX_MONTHLY_RATE) {
+      return `A taxa mensal deve estar entre 0% e ${MAX_MONTHLY_RATE * 100}%.`;
     }
     try {
-      await firstValueFrom(this.api.setInterestPolicy(monthlyRate));
+      const policy = await firstValueFrom(this.api.setInterestPolicy(monthlyRate));
+      this.monthlyRate.set(policy.monthlyRate);
       this.adminSummary.set(await firstValueFrom(this.api.adminSummary()));
       return null;
     } catch (error) {
@@ -177,6 +195,7 @@ export class BankStore {
     this.cards.set([]);
     this.purchases.set([]);
     this.adminSummary.set(null);
+    this.monthlyRate.set(null);
   }
 }
 

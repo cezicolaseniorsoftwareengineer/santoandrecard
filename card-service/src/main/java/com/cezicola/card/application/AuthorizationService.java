@@ -89,7 +89,7 @@ public class AuthorizationService {
         if (wallet == null || wallet.balance.compareTo(amount) < 0) {
             metrics.authorizationDecided("insufficient_funds");
             metrics.refused("authorization", "insufficient_funds");
-            throw new InsufficientFundsException();
+            throw InsufficientFundsException.wallet();
         }
         // The projection tracks spendable funds, so held money leaves it. The
         // ledger keeps both sides, which is how the two stay reconcilable.

@@ -32,11 +32,13 @@ describe('BankStore', () => {
     expect(Object.keys(request.request.body as object)).toEqual(['merchantCategory', 'amount', 'installments']);
     request.flush({
       id: 'p1', customerId: 'c1', merchantCategory: 'Padaria', principal: 25, interest: 0,
-      total: 25, installments: 1, installmentAmount: 25, remainingWalletBalance: 75, createdAt: '2026-08-17T00:00:00Z'
+      total: 25, installments: 1, installmentAmount: 25, lastInstallmentAmount: 25,
+      monthlyRate: 0.02, remainingCardBalance: 75, createdAt: '2026-08-17T00:00:00Z'
     });
 
     expect(await pending).toBeNull();
-    expect(store.balance()).toBe(75);
+    // The card is what pays for a purchase, so the card balance is what moved.
+    expect(store.cardBalance()).toBe(75);
   });
 
   it('asks the API for the quote rather than calculating interest', async () => {
@@ -48,7 +50,8 @@ describe('BankStore', () => {
   });
 
   it('rejects an out-of-range instalment count before calling the API', async () => {
-    expect(await store.quote(100, 36)).toBe('O parcelamento aceita de 1 a 24 parcelas.');
+    expect(await store.quote(100, 36)).toBe('O parcelamento aceita de 1 a 12 parcelas.');
+    expect(await store.quote(100, 13)).toBe('O parcelamento aceita de 1 a 12 parcelas.');
   });
 
   it('reports insufficient funds without discarding the balance', async () => {

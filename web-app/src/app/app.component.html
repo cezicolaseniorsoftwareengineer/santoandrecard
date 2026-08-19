@@ -60,9 +60,13 @@
         <section class="panel">
           <div class="panel-heading"><div><p class="eyebrow">Política</p><h2>Taxa de juros mensal</h2></div></div>
           <form class="form-panel" (ngSubmit)="applyInterestPolicy()">
-            <label for="rate">Taxa mensal (0 a 1)</label>
-            <input id="rate" name="rate" type="number" min="0" max="1" step="0.0001" [(ngModel)]="monthlyRate" required>
-            <small>0,0199 equivale a 1,99% ao mês. Aplica-se a este tenant.</small>
+            <label for="rate">Taxa mensal (0% a 60%)</label>
+            <input id="rate" name="rate" type="number" min="0" max="0.6" step="0.0001" [(ngModel)]="monthlyRate" required>
+            <small>0,0199 equivale a 1,99% ao mês. O máximo é 0,6 (60%). Aplica-se a este
+              tenant e vale apenas para compras parceladas: à vista nunca tem juros.</small>
+            @if (store.monthlyRate() !== null) {
+              <p class="demo-hint">Taxa em vigor: <strong>{{ store.monthlyRate()! | percent:'1.2-4' }}</strong> ao mês.</p>
+            }
             <button class="primary" type="submit" [disabled]="busy()">Salvar taxa</button>
           </form>
         </section>
@@ -70,7 +74,7 @@
         <section class="hero-row customer">
           <div class="balances">
             <div class="balance">
-              <p class="eyebrow light">Saldo disponível</p>
+              <p class="eyebrow light">Saldo em carteira</p>
               <div class="balance-line">
                 <h2>{{ balanceVisible() ? (store.balance() | currency:'BRL') : '••••••' }}</h2>
                 <button class="eye" type="button" (click)="balanceVisible.set(!balanceVisible())"
@@ -85,7 +89,7 @@
               </div>
             </div>
             <div class="balance">
-              <p class="eyebrow light">No cartão pré-pago</p>
+              <p class="eyebrow light">Disponível para compra no cartão</p>
               <h2 class="secondary-balance">{{ balanceVisible() ? (store.cardBalance() | currency:'BRL') : '••••••' }}</h2>
             </div>
           </div>
@@ -140,7 +144,7 @@
           </div>
         </section>
       } @else if (view() === 'shopping') {
-        <section class="page-heading"><div><p class="eyebrow">Compra com parcelamento</p><h2>Nova compra</h2><p>O cálculo de juros é feito pelo serviço de cartões, não pelo navegador.</p></div><div class="available-pill">Saldo <strong>{{ store.balance() | currency:'BRL' }}</strong></div></section>
+        <section class="page-heading"><div><p class="eyebrow">Compra com parcelamento</p><h2>Nova compra</h2><p>O cálculo de juros é feito pelo serviço de cartões, não pelo navegador.</p></div><div class="available-pill">Disponível no cartão <strong>{{ store.cardBalance() | currency:'BRL' }}</strong></div></section>
         <section class="simulator-grid">
           <form class="panel form-panel" (ngSubmit)="simulate()">
             <label for="category">Categoria do estabelecimento</label>
@@ -148,8 +152,8 @@
             <label for="amount">Valor da compra</label>
             <div class="money-input"><span>R$</span><input id="amount" name="amount" type="text" inputmode="numeric" appBrl [(ngModel)]="purchaseAmount" required></div>
             <label for="installments">Parcelas</label>
-            <select id="installments" name="installments" [(ngModel)]="installments">@for (n of [1,2,3,4,5,6,9,12,18,24]; track n) { <option [value]="n">{{ n }}x</option> }</select>
-            <small>A taxa vigente é definida pela administração do banco.</small>
+            <select id="installments" name="installments" [(ngModel)]="installments">@for (n of installmentOptions; track n) { <option [value]="n">{{ n }}x@if (n === 1) { · à vista, sem juros }</option> }</select>
+            <small>À vista não tem juros. Parcelado usa a taxa vigente@if (store.monthlyRate() !== null) { de <strong>{{ store.monthlyRate()! | percent:'1.2-4' }}</strong> ao mês }, definida pela administração do banco.</small>
             <button class="primary full" type="submit" [disabled]="busy()">Calcular condições</button>
           </form>
           <aside class="simulation-result" [class.empty]="!quote()">
@@ -158,8 +162,14 @@
               <h3>{{ result.installments }}x de</h3><strong>{{ result.installmentAmount | currency:'BRL' }}</strong><hr>
               <div><span>Compra</span><b>{{ result.principal | currency:'BRL' }}</b></div>
               <div><span>Juros</span><b>{{ result.interest | currency:'BRL' }}</b></div>
+              @if (result.installments > 1) {
+                <div><span>Taxa aplicada</span><b>{{ result.monthlyRate | percent:'1.2-4' }} a.m.</b></div>
+              }
+              @if (result.lastInstallmentAmount !== result.installmentAmount) {
+                <div><span>Última parcela</span><b>{{ result.lastInstallmentAmount | currency:'BRL' }}</b></div>
+              }
               <div><span>Total</span><b>{{ result.total | currency:'BRL' }}</b></div>
-              <p class="disclaimer">O valor total é debitado da carteira no momento da confirmação.</p>
+              <p class="disclaimer">O valor total é debitado do saldo do cartão no momento da confirmação.</p>
               <button class="white-button" (click)="confirmPurchase()" [disabled]="busy()">Confirmar compra</button>
             } @else {
               <span class="result-icon">◇</span><h3>O resultado aparece aqui</h3><p>Preencha os dados para ver as condições.</p>
@@ -170,7 +180,7 @@
         <section class="page-heading"><div><p class="eyebrow">Movimentações</p><h2>Extrato de compras</h2><p>Compras registradas na sua conta.</p></div><button class="secondary" (click)="reload()" [disabled]="store.loading()">Atualizar</button></section>
         <section class="panel transaction-list">
           @for (item of store.purchases(); track item.id) {
-            <div class="transaction"><span class="transaction-icon">↑</span><span><strong>{{ item.merchantCategory }}</strong><small>{{ item.createdAt | date:'dd/MM/yyyy' }} · {{ item.installments }}x de {{ item.installmentAmount | currency:'BRL' }} @if (item.interest > 0) { · juros {{ item.interest | currency:'BRL' }} }</small></span><strong>{{ -item.total | currency:'BRL' }}</strong></div>
+            <div class="transaction"><span class="transaction-icon">↑</span><span><strong>{{ item.merchantCategory }}</strong><small>{{ item.createdAt | date:'dd/MM/yyyy' }} · {{ item.installments }}x de {{ item.installmentAmount | currency:'BRL' }}@if (item.lastInstallmentAmount !== item.installmentAmount) { (última {{ item.lastInstallmentAmount | currency:'BRL' }}) } @if (item.interest > 0) { · juros {{ item.interest | currency:'BRL' }} a {{ item.monthlyRate | percent:'1.2-4' }} a.m. }</small></span><strong>{{ -item.total | currency:'BRL' }}</strong></div>
           } @empty { <p class="demo-hint">Nenhuma compra registrada ainda.</p> }
         </section>
       }

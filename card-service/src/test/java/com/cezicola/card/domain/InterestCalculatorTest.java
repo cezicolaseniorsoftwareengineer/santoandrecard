@@ -26,5 +26,7 @@ class InterestCalculatorTest {
     void rejectsUnsupportedInstallmentCount() {
         assertThrows(IllegalArgumentException.class,
                 () -> calculator.calculate(new BigDecimal("100.00"), 25, BigDecimal.ZERO));
+        assertThrows(IllegalArgumentException.class,
+                () -> calculator.calculate(new BigDecimal("100.00"), 0, BigDecimal.ZERO));
     }
 }

@@ -27,8 +27,10 @@ class LedgerReconciliationTest {
         finance.setInterestPolicy(tenant, new BigDecimal("0.0199"));
 
         finance.topUp(tenant, customer, new BigDecimal("2000.00"));
+        finance.loadCard(tenant, customer, new BigDecimal("1500.00"));
         purchase(tenant, customer, "RETAIL", "600.00", 6);
         finance.topUp(tenant, customer, new BigDecimal("150.00"));
+        finance.loadCard(tenant, customer, new BigDecimal("100.00"));
         purchase(tenant, customer, "BAKERY", "40.00", 1);
 
         assertTrue(ledger.reconcileWallets(tenant).isEmpty(),
@@ -44,11 +46,14 @@ class LedgerReconciliationTest {
         finance.setInterestPolicy(tenant, new BigDecimal("0.10"));
 
         finance.topUp(tenant, customer, new BigDecimal("200.00"));
+        finance.loadCard(tenant, customer, new BigDecimal("200.00"));
         var result = purchase(tenant, customer, "SHOPPING", "100.00", 2);
 
-        // 100.00 principal plus 21.00 interest leaves 79.00 of the 200.00.
-        assertEquals(0, new BigDecimal("79.00").compareTo(result.remainingWalletBalance()));
-        assertEquals(0, new BigDecimal("79.00").compareTo(ledger.walletBalance(tenant, customer)));
+        // The card pays: 100.00 principal plus 21.00 interest leaves 79.00 of the
+        // 200.00 loaded onto it, and the wallet it was loaded from is now empty.
+        assertEquals(0, new BigDecimal("79.00").compareTo(result.remainingCardBalance()));
+        assertEquals(0, new BigDecimal("79.00").compareTo(finance.cardBalance(tenant, customer)));
+        assertEquals(0, BigDecimal.ZERO.compareTo(ledger.walletBalance(tenant, customer)));
     }
 
     @Test
@@ -75,13 +80,19 @@ class LedgerReconciliationTest {
         UUID customer = UUID.randomUUID();
         finance.setInterestPolicy(tenant, new BigDecimal("0.10"));
         finance.topUp(tenant, customer, new BigDecimal("500.00"));
+        finance.loadCard(tenant, customer, new BigDecimal("300.00"));
         purchase(tenant, customer, "SHOPPING", "100.00", 2);
 
         var statement = ledger.walletStatement(tenant, customer, 10);
         assertEquals(2, statement.size());
-        // Most recent first: the purchase leaves the wallet, the top-up entered it.
-        assertEquals(0, new BigDecimal("-121.00").compareTo(statement.get(0).signedAmount()));
+        // Most recent first: the card load left the wallet, the top-up entered it.
+        // The purchase itself is not a wallet movement any more — the card pays.
+        assertEquals(0, new BigDecimal("-300.00").compareTo(statement.get(0).signedAmount()));
         assertEquals(0, new BigDecimal("500.00").compareTo(statement.get(1).signedAmount()));
+
+        // 121.00 of the 300.00 on the card was spent, and the 21.00 of interest is
+        // revenue rather than a smaller net movement.
+        assertEquals(0, new BigDecimal("179.00").compareTo(finance.cardBalance(tenant, customer)));
     }
 
     /**

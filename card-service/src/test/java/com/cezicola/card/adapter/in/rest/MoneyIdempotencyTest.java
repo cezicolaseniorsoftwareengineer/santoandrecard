@@ -101,8 +101,9 @@ class MoneyIdempotencyTest {
         purchase(purchaseKey);
         purchase(purchaseKey);
 
-        // One load and one purchase, whatever the retries did.
-        given().when().get("/api/v1/wallet").then().body("cardBalance", equalTo(300.00f));
+        // One load and one purchase, whatever the retries did: 300.00 reached the
+        // card and a single 90.00 purchase was taken from it.
+        given().when().get("/api/v1/wallet").then().body("cardBalance", equalTo(210.00f));
         given().when().get("/api/v1/purchases").then().body("size()", equalTo(1));
     }
 
