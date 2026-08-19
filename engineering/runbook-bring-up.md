@@ -100,7 +100,7 @@ npm ci
 npm start
 ```
 
-Check: <http://localhost:4200> loads and "Criar minha conta" redirects to Keycloak
+Check: <http://localhost:4420> loads and "Criar minha conta" redirects to Keycloak
 on port 8180. That redirect is the proof the OIDC wiring is right.
 
 ### A5. Exercise it end to end

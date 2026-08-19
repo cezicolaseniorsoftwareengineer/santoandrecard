@@ -269,7 +269,7 @@ npm ci
 npm start
 ```
 
-The interface is at `http://localhost:4200`. Create an account through "Criar minha
+The interface is at `http://localhost:4420`. Create an account through "Criar minha
 conta", which enters Keycloak's registration screen — the application never sees a
 password.
 
@@ -505,7 +505,7 @@ cd web-app
 npm start
 ```
 
-The interface is then available at `http://localhost:4200`.
+The interface is then available at `http://localhost:4420`.
 
 The example Kubernetes secret is intentionally non-operational. Supply the real
 `db-password` and `keycloak-admin-password` through a cluster secret manager
