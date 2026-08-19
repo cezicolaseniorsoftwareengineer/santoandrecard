@@ -194,6 +194,10 @@ Everything below runs the same on macOS, Linux and Windows. Where a command
 genuinely differs, both are given: the shell script for macOS and Linux, the
 PowerShell script for Windows. They are equivalent — same contract, same output.
 
+Every command with the check that proves it worked, for the local stack, the
+canonical database and Kubernetes, is in
+`engineering/runbook-bring-up.md`. The short path follows.
+
 ### Enable the commit guard first
 
 One command, once per clone:
