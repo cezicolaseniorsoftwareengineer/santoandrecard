@@ -28,6 +28,9 @@
       } @else if (view() === 'shopping') {
         <app-purchase-simulator [busy]="busy()" [quote]="quote()"
                                 (simulated)="simulate($event)" (confirmed)="confirmPurchase($event)" />
+      } @else if (view() === 'invoices') {
+        <app-invoices [busy]="busy()" (paid)="payInvoice($event)"
+                      (cycleClosed)="closeCycle($event)" (itemsRequested)="loadInvoiceItems($event)" />
       } @else {
         <app-statement (refreshed)="reload()" />
       }

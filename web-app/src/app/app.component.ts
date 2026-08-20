@@ -5,6 +5,7 @@ import { PurchaseQuote } from './bank.models';
 import { AdminDashboardComponent } from './ui/admin-dashboard.component';
 import { AppSidebarComponent, CustomerView } from './ui/app-sidebar.component';
 import { CustomerOverviewComponent } from './ui/customer-overview.component';
+import { InvoicesComponent } from './ui/invoices.component';
 import { LoginComponent } from './ui/login.component';
 import { PinDialogComponent, PinPurpose } from './ui/pin-dialog.component';
 import { PurchaseIntent, PurchaseSimulatorComponent } from './ui/purchase-simulator.component';
@@ -25,7 +26,8 @@ import { ToastComponent } from './ui/toast.component';
   standalone: true,
   imports: [
     SplashComponent, LoginComponent, ToastComponent, PinDialogComponent, AppSidebarComponent,
-    AdminDashboardComponent, CustomerOverviewComponent, PurchaseSimulatorComponent, StatementComponent
+    AdminDashboardComponent, CustomerOverviewComponent, PurchaseSimulatorComponent, StatementComponent,
+    InvoicesComponent
   ],
   templateUrl: './app.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -116,6 +118,29 @@ export class AppComponent implements OnInit {
   navigate(view: CustomerView): void {
     this.view.set(view);
     this.quote.set(null);
+    // Statements are read when the screen is opened rather than on every boot:
+    // a customer looking at a card balance is asking a different question.
+    if (view === 'invoices') {
+      void this.loadInvoices();
+    }
+  }
+
+  async loadInvoices(): Promise<void> {
+    const error = await this.store.loadInvoices();
+    if (error) this.showToast(error);
+  }
+
+  async loadInvoiceItems(id: string): Promise<void> {
+    const error = await this.store.loadInvoiceItems(id);
+    if (error) this.showToast(error);
+  }
+
+  async payInvoice(payment: { id: string; amount: number }): Promise<void> {
+    await this.run(() => this.store.payInvoice(payment.id, payment.amount), 'Fatura paga.');
+  }
+
+  async closeCycle(cycle: string): Promise<void> {
+    await this.run(() => this.store.closeCycle(cycle), 'Ciclo fechado.');
   }
 
   async issueCard(): Promise<void> {
@@ -174,7 +199,7 @@ export class AppComponent implements OnInit {
 
   async confirmPurchase(intent: PurchaseIntent): Promise<void> {
     await this.run(
-      () => this.store.purchase(intent.category, intent.amount, intent.installments),
+      () => this.store.purchase(intent.category, intent.amount, intent.installments, intent.fundingSource),
       'Compra autorizada.'
     );
     this.quote.set(null);

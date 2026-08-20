@@ -25,6 +25,17 @@ describe('PurchaseSimulatorComponent', () => {
     expect(options[options.length - 1]).toBe(MAX_INSTALLMENTS);
   });
 
+  it('carries the chosen funding source to the shell', async () => {
+    const fixture = await render();
+    const asked: PurchaseIntent[] = [];
+    fixture.componentInstance.simulated.subscribe(intent => asked.push(intent));
+
+    fixture.componentInstance.fundingSource.set('CREDIT');
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+
+    expect(asked[0].fundingSource).toBe('CREDIT');
+  });
+
   it('reports the instalment count as a number', async () => {
     const fixture = await render();
     // A select binds a string. Emitting it unconverted sends "6" to an API that
@@ -45,7 +56,11 @@ describe('PurchaseSimulatorComponent', () => {
     fixture.componentInstance.installments.set(3);
     fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
 
-    expect(asked).toEqual([{ category: 'Padaria', amount: 250, installments: 3 }]);
+    expect(asked).toEqual([
+      // The funding source travels with the intent: it decides which account is
+      // debited, and the screen must not leave the shell to guess.
+      { category: 'Padaria', amount: 250, installments: 3, fundingSource: 'CARD' }
+    ]);
   });
 
   it('shows the placeholder until the API has priced something', async () => {

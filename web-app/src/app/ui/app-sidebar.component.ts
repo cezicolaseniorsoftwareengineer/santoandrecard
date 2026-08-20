@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { Session } from '../bank.models';
 
-export type CustomerView = 'overview' | 'shopping' | 'statement';
+export type CustomerView = 'overview' | 'shopping' | 'statement' | 'invoices';
 
 /** Navigation and the signed-in identity. What it offers follows the role. */
 @Component({

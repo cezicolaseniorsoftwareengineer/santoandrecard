@@ -1,6 +1,7 @@
 package com.cezicola.card.adapter.in.rest;
 
 import com.cezicola.card.application.FinanceService;
+import com.cezicola.card.domain.FundingSource;
 import com.cezicola.card.application.IdempotentOperation;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
@@ -77,7 +78,8 @@ public class FinanceResource {
         var purchase = idempotent.execute(caller.tenantId(), "purchase", key, request,
                 FinanceService.PurchaseView.class,
                 () -> service.purchase(caller.tenantId(), caller.customerId(),
-                        request.merchantCategory(), request.amount(), request.installments()));
+                        request.merchantCategory(), request.amount(), request.installments(),
+                        request.fundingSourceOrDefault()));
         return Response.status(201).entity(purchase).build();
     }
 
@@ -102,7 +104,22 @@ public class FinanceResource {
 
     public record TopUpRequest(@NotNull @DecimalMin("0.01") BigDecimal amount) {}
     public record QuoteRequest(@NotNull @DecimalMin("0.01") BigDecimal amount, @Min(1) @Max(12) int installments) {}
+    /**
+     * A purchase, and what pays for it.
+     *
+     * <p>{@code fundingSource} is optional and defaults to the prepaid card, so
+     * every client written before credit existed keeps the behaviour it was
+     * written against. Absent is not the same as invalid: a field added to a
+     * contract must not break the callers that predate it.
+     */
     public record PurchaseRequest(@NotBlank @Size(max=64) String merchantCategory,
-                                  @NotNull @DecimalMin("0.01") BigDecimal amount, @Min(1) @Max(12) int installments) {}
+                                  @NotNull @DecimalMin("0.01") BigDecimal amount,
+                                  @Min(1) @Max(12) int installments,
+                                  FundingSource fundingSource) {
+
+        public FundingSource fundingSourceOrDefault() {
+            return fundingSource == null ? FundingSource.CARD : fundingSource;
+        }
+    }
     public record InterestPolicyRequest(@NotNull @DecimalMin("0.0") @DecimalMax("0.60") BigDecimal monthlyRate) {}
 }

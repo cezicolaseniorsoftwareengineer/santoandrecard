@@ -1,0 +1,105 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Crédito</p>
+    <h2>Minhas faturas</h2>
+    <p>O que foi comprado no crédito é cobrado no fechamento do ciclo e pago da carteira.</p>
+  </div>
+  <div class="available-pill">
+    Em aberto <strong>{{ totalOutstanding() | currency:'BRL' }}</strong>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Ciclo atual</p>
+      <h2>{{ currentCycle() }}</h2>
+    </div>
+    <button class="secondary" type="button" [disabled]="busy()" (click)="cycleClosed.emit(currentCycle())">
+      Fechar ciclo agora
+    </button>
+  </div>
+  <p class="demo-hint">
+    Em produção o fechamento é mensal. Aqui ele pode ser disparado para que o
+    ciclo possa ser visto fechando sem esperar um mês. Fechar um ciclo já
+    fechado devolve a mesma fatura, sem cobrar nada de novo.
+  </p>
+</section>
+
+@if (store.invoices().length === 0) {
+  <section class="panel">
+    <p class="demo-hint">
+      Nenhuma fatura ainda. Compras no crédito aparecem aqui quando o ciclo fecha.
+    </p>
+  </section>
+} @else {
+  <section class="panel">
+    <div class="transaction-list">
+      @for (invoice of store.invoices(); track invoice.id) {
+        <div class="invoice">
+          <div class="invoice-row">
+            <span class="invoice-cycle">
+              <strong>{{ invoice.cycle }}</strong>
+              <small>
+                @if (invoice.dueDate) { Vence em {{ invoice.dueDate | date:'dd/MM/yyyy' }} }
+                @else { Ciclo em andamento }
+              </small>
+            </span>
+
+            <span class="invoice-status" [attr.data-tone]="tone(invoice.status)">{{ label(invoice.status) }}</span>
+
+            <span class="invoice-amounts">
+              <strong>{{ invoice.balance | currency:'BRL' }}</strong>
+              <small>de {{ invoice.billedTotal | currency:'BRL' }}</small>
+            </span>
+
+            <span class="invoice-actions">
+              <button class="text-button" type="button" (click)="toggleItems(invoice)">
+                {{ expanded() === invoice.id ? 'Ocultar itens' : 'Ver itens' }}
+              </button>
+              @if (invoice.balance > 0 && invoice.status !== 'OPEN') {
+                <button class="primary" type="button" [disabled]="busy()" (click)="startPayment(invoice)">Pagar</button>
+              }
+            </span>
+          </div>
+
+          @if (payingId() === invoice.id) {
+            <form class="invoice-payment" (ngSubmit)="confirmPayment(invoice)">
+              <label [attr.for]="'pay-' + invoice.id">Valor a pagar</label>
+              <div class="money-input">
+                <span>R$</span>
+                <input [id]="'pay-' + invoice.id" name="amount" type="text" inputmode="numeric" appBrl
+                       [ngModel]="payAmount()" (ngModelChange)="payAmount.set($event)" required>
+              </div>
+              <!-- Full payment is the default because it is what most people
+                   mean; partial stays possible because the platform supports it
+                   and hiding it would make this screen claim otherwise. -->
+              <small>Em aberto: {{ invoice.balance | currency:'BRL' }}. Pagamento parcial é aceito.</small>
+              <div class="pin-actions">
+                <button class="secondary" type="button" (click)="cancelPayment()">Cancelar</button>
+                <button class="primary" type="submit" [disabled]="busy()">Confirmar pagamento</button>
+              </div>
+            </form>
+          }
+
+          @if (expanded() === invoice.id) {
+            <div class="invoice-items">
+              @for (item of store.invoiceItems(); track item.id) {
+                <div class="transaction">
+                  <span class="transaction-icon">↑</span>
+                  <span>
+                    <strong>{{ item.description }}</strong>
+                    <small>{{ item.occurredAt | date:'dd/MM/yyyy' }}</small>
+                  </span>
+                  <strong>{{ item.amount | currency:'BRL' }}</strong>
+                </div>
+              } @empty {
+                <p class="demo-hint">Esta fatura não tem itens.</p>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </section>
+}
