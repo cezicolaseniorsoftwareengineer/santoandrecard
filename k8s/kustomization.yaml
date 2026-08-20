@@ -23,3 +23,24 @@ resources:
 # kustomization root. Create it with:
 #   kubectl -n card-platform create configmap keycloak-realm \
 #     --from-file=../keycloak/realm-card-platform.json
+
+# The image identity lives here and nowhere else.
+#
+# It used to be written into card-service.yaml and web-app.yaml directly, which
+# meant a version existed in two manifests and in two documents, and they drifted:
+# the manifests named one tag while the runbook taught another, and the only
+# symptom was a pod stuck in ImagePullBackOff with nothing explaining why.
+#
+# One line per image, changed once per release:
+#   kustomize edit set image ghcr.io/cezicolaseniorsoftwareengineer/card-service=*:v0.4.0
+#
+# Local builds still work. Override the registry back to a local tag with:
+#   kubectl kustomize k8s/ | sed 's|ghcr.io/[^/]*/||' | kubectl apply -f -
+# or edit the newName below to the bare image name.
+images:
+  - name: card-service
+    newName: ghcr.io/cezicolaseniorsoftwareengineer/card-service
+    newTag: v0.4.0
+  - name: web-app
+    newName: ghcr.io/cezicolaseniorsoftwareengineer/web-app
+    newTag: v0.4.0

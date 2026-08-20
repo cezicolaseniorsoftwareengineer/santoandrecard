@@ -60,7 +60,7 @@ spec:
         - name: card-service
           # Tags must be immutable: reusing a tag leaves nodes serving a stale
           # cached image under imagePullPolicy IfNotPresent.
-          image: card-service:0.3.0
+          image: card-service
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
