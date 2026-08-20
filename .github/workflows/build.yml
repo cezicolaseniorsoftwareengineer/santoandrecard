@@ -305,3 +305,51 @@ jobs:
       - name: Stop the API
         if: always()
         run: kill "$(cat api.pid)" 2>/dev/null || true
+
+  # The manifests had no check at all, and it showed: a tag written by hand in
+  # four places drifted apart, and the only symptom was a pod that never
+  # started. This renders the kustomization and validates every resource against
+  # the Kubernetes schemas, so a manifest that cannot apply fails here instead of
+  # failing in a cluster an hour later.
+  manifests:
+    name: kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render the kustomization
+        run: |
+          kubectl kustomize k8s/ > rendered.yaml
+          echo "rendered $(grep -c '^kind:' rendered.yaml) resources"
+
+      - name: Validate against the Kubernetes schemas
+        run: |
+          curl -sSL -o kubeconform.tar.gz             https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz
+          tar xzf kubeconform.tar.gz kubeconform
+          # strict rejects unknown fields, which is how a typo in a probe or a
+          # resource limit silently does nothing.
+          ./kubeconform -strict -summary -output text rendered.yaml
+
+      - name: Every image reference must be resolvable
+        run: |
+          # A manifest that names a tag nobody published is indistinguishable
+          # from a working one until it is applied. This asks the registry.
+          fail=0
+          for ref in $(grep -oE 'image: \S+' rendered.yaml | awk '{print $2}' | sort -u); do
+            case "$ref" in
+              ghcr.io/*)
+                repo="${ref%:*}"; tag="${ref##*:}"
+                path="${repo#ghcr.io/}"
+                token=$(curl -sSL "https://ghcr.io/token?scope=repository:${path}:pull&service=ghcr.io" | jq -r .token)
+                code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token"                   -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'                   "https://ghcr.io/v2/${path}/manifests/${tag}")
+                if [ "$code" = "200" ]; then
+                  echo "  ok        $ref"
+                else
+                  echo "::error::the manifests reference $ref, which the registry answers $code for"
+                  fail=1
+                fi
+                ;;
+              *) echo "  external  $ref" ;;
+            esac
+          done
+          exit $fail
