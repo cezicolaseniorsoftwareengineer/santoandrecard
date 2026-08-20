@@ -317,19 +317,20 @@ Every command with the check that proves it worked, for the local stack, the
 canonical database and Kubernetes, is in
 `engineering/runbook-bring-up.md`. The short path follows.
 
-### Enable the commit guard first
+### Keep credentials out of the history
 
-One command, once per clone:
+`.gitignore` excludes `.env` and anything under `secrets/`. Treat that as the
+reminder it is rather than as a control: an ignore rule is one line, and deleting
+it is an ordinary-looking commit. Before committing, check what is actually
+staged:
 
 ```bash
-git config core.hooksPath .githooks
+git diff --cached --name-only
 ```
 
-`.githooks/pre-commit` refuses to commit `.env`, anything under `secrets/`, and
-the operator prompt file. `.gitignore` already lists them, but an ignore rule is a
-convention: it is one line, and deleting it is an ordinary-looking commit — which
-has already happened once here. The hook inspects what is actually staged, so it
-holds even when the rule is gone or `git add -f` was used.
+Anything that reaches a commit reaches the history, and deleting it later does
+not remove it — the object stays fetchable by its identifier. `.env.example` is
+the template to copy; it carries placeholders only.
 
 ### On Windows, clone somewhere short
 
