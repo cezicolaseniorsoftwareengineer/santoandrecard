@@ -59,7 +59,7 @@ describe('BankStore', () => {
     http.expectOne(`${API_BASE_URL}/purchases`)
       .flush({ code: 'INSUFFICIENT_FUNDS' }, { status: 422, statusText: 'Unprocessable Entity' });
 
-    expect(await pending).toBe('Saldo insuficiente para esta compra.');
+    expect(await pending).toBe('Saldo insuficiente para esta operação.');
   });
 
   it('states that nothing was debited when merchant authorization is unavailable', () => {

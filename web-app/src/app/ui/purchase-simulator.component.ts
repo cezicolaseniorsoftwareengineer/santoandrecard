@@ -3,13 +3,15 @@ import { ChangeDetectionStrategy, Component, inject, input, output, signal } fro
 import { FormsModule } from '@angular/forms';
 import { BankStore, MAX_INSTALLMENTS } from '../bank-store.service';
 import { BrlInputDirective } from '../brl-input.directive';
-import { MerchantCategory, PurchaseQuote } from '../bank.models';
+import { FundingSource, MerchantCategory, PurchaseQuote } from '../bank.models';
 
 /** What the shopper is about to buy, and what it will actually cost. */
 export interface PurchaseIntent {
   readonly category: MerchantCategory;
   readonly amount: number;
   readonly installments: number;
+  /** Fixed at authorization; the API refuses to change it afterwards. */
+  readonly fundingSource: FundingSource;
 }
 
 /**
@@ -37,6 +39,7 @@ export class PurchaseSimulatorComponent {
   readonly category = signal<MerchantCategory>('Shopping');
   readonly amount = signal(600);
   readonly installments = signal(3);
+  readonly fundingSource = signal<FundingSource>('CARD');
 
   readonly categories: readonly MerchantCategory[] =
     ['Shopping', 'Padaria', 'Açougue', 'Restaurante', 'Farmácia'];
@@ -51,6 +54,11 @@ export class PurchaseSimulatorComponent {
 
   intent(): PurchaseIntent {
     // The select binds a string; the API is priced in whole instalments.
-    return { category: this.category(), amount: this.amount(), installments: Number(this.installments()) };
+    return {
+      category: this.category(),
+      amount: this.amount(),
+      installments: Number(this.installments()),
+      fundingSource: this.fundingSource()
+    };
   }
 }

@@ -5,6 +5,7 @@
       <button [class.active]="view() === 'overview'" (click)="navigated.emit('overview')"><span>⌂</span> Visão geral</button>
       <button [class.active]="view() === 'shopping'" (click)="navigated.emit('shopping')"><span>◇</span> Comprar</button>
       <button [class.active]="view() === 'statement'" (click)="navigated.emit('statement')"><span>≡</span> Extrato</button>
+      <button [class.active]="view() === 'invoices'" (click)="navigated.emit('invoices')"><span>▤</span> Faturas</button>
     } @else { <button class="active"><span>▦</span> Painel executivo</button> }
   </nav>
   <div class="sidebar-bottom">

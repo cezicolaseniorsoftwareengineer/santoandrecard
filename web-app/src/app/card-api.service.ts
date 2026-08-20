@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from './auth.config';
-import { AdminSummary, CardBalances, CardNumberResponse, CardResponse, InterestPolicy, PurchaseQuote, PurchaseResponse, WalletResponse } from './bank.models';
+import { AdminSummary, CardBalances, CardNumberResponse, CardResponse, InterestPolicy, FundingSource, InvoiceItemResponse, InvoiceResponse, PurchaseQuote, PurchaseResponse, WalletResponse } from './bank.models';
 
 /** Thin typed client over the card-service REST API. */
 @Injectable({ providedIn: 'root' })
@@ -48,7 +48,8 @@ export class CardApi {
     return this.http.post<PurchaseQuote>(`${API_BASE_URL}/purchases/quote`, { amount, installments });
   }
 
-  purchase(merchantCategory: string, amount: number, installments: number): Observable<PurchaseResponse> {
+  purchase(merchantCategory: string, amount: number, installments: number,
+           fundingSource: FundingSource = 'CARD'): Observable<PurchaseResponse> {
     return this.http.post<PurchaseResponse>(`${API_BASE_URL}/purchases`, { merchantCategory, amount, installments });
   }
 
@@ -63,5 +64,31 @@ export class CardApi {
 
   setInterestPolicy(monthlyRate: number): Observable<InterestPolicy> {
     return this.http.put<InterestPolicy>(`${API_BASE_URL}/admin/interest-policy`, { monthlyRate });
+  }
+
+  /** The caller's statements, most recent cycle first. */
+  invoices(limit = 12): Observable<readonly InvoiceResponse[]> {
+    return this.http.get<readonly InvoiceResponse[]>(`${API_BASE_URL}/statements`, { params: { limit } });
+  }
+
+  /** The lines that made up one statement. */
+  invoiceItems(id: string): Observable<readonly InvoiceItemResponse[]> {
+    return this.http.get<readonly InvoiceItemResponse[]>(`${API_BASE_URL}/statements/${id}/items`);
+  }
+
+  /** Pays a statement from the wallet. Idempotent, like every command that moves money. */
+  payInvoice(id: string, amount: number): Observable<InvoiceResponse> {
+    return this.http.post<InvoiceResponse>(`${API_BASE_URL}/statements/${id}/payments`, { amount });
+  }
+
+  /**
+   * Closes a cycle on demand.
+   *
+   * <p>Offered so a reader can watch a cycle bill without waiting a month. The
+   * API bills only the caller's own purchases and returns an already-closed
+   * cycle unchanged.
+   */
+  closeCycle(cycle: string): Observable<InvoiceResponse> {
+    return this.http.post<InvoiceResponse>(`${API_BASE_URL}/statements/close`, { cycle });
   }
 }

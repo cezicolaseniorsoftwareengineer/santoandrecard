@@ -3,7 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from './auth.service';
 import { CardApi } from './card-api.service';
-import { AdminSummary, CardResponse, PurchaseQuote, PurchaseResponse } from './bank.models';
+import { AdminSummary, CardResponse, FundingSource, InvoiceItemResponse, InvoiceResponse, PurchaseQuote, PurchaseResponse } from './bank.models';
 
 /** Product rule: a purchase is paid in cash or split over at most twelve months. */
 export const MAX_INSTALLMENTS = 12;
@@ -32,6 +32,10 @@ export class BankStore {
   /** The administered rate in force. Null until it has been read from the API. */
   readonly monthlyRate = signal<number | null>(null);
   readonly loading = signal(false);
+  /** Statements of the signed-in customer, most recent cycle first. */
+  readonly invoices = signal<readonly InvoiceResponse[]>([]);
+  /** Lines of whichever statement is open on screen, keyed by its id. */
+  readonly invoiceItems = signal<readonly InvoiceItemResponse[]>([]);
 
   readonly card = computed(() => this.cards()[0] ?? null);
   readonly committed = computed(() => this.purchases().reduce((sum, p) => sum + p.total, 0));
@@ -149,6 +153,59 @@ export class BankStore {
     }
   }
 
+  /**
+   * Statements. Read separately from the dashboard because a customer looking at
+   * a card balance is asking a different question from one looking at a bill,
+   * and loading both on every screen makes the first slower for no reason.
+   */
+  async loadInvoices(): Promise<string | null> {
+    try {
+      this.invoices.set(await firstValueFrom(this.api.invoices()));
+      return null;
+    } catch (error) {
+      return describe(error);
+    }
+  }
+
+  async loadInvoiceItems(id: string): Promise<string | null> {
+    try {
+      this.invoiceItems.set(await firstValueFrom(this.api.invoiceItems(id)));
+      return null;
+    } catch (error) {
+      return describe(error);
+    }
+  }
+
+  /**
+   * Pays a statement from the wallet.
+   *
+   * <p>The wallet balance is reloaded afterwards rather than adjusted here: the
+   * API is the authority on what a payment left behind, and a figure decremented
+   * in the browser is a second opinion nobody asked for.
+   */
+  async payInvoice(id: string, amount: number): Promise<string | null> {
+    if (!Number.isFinite(amount) || amount <= 0) return 'Informe um valor maior que zero.';
+    try {
+      await firstValueFrom(this.api.payInvoice(id, round(amount)));
+      await this.loadInvoices();
+      await this.refresh();
+      return null;
+    } catch (error) {
+      return describe(error);
+    }
+  }
+
+  /** Closes a cycle on demand, so a reader can watch one bill. */
+  async closeCycle(cycle: string): Promise<string | null> {
+    try {
+      await firstValueFrom(this.api.closeCycle(cycle));
+      await this.loadInvoices();
+      return null;
+    } catch (error) {
+      return describe(error);
+    }
+  }
+
   /** Asks the API for the quote; interest is never calculated in the browser. */
   async quote(amount: number, installments: number): Promise<PurchaseQuote | string> {
     if (!Number.isFinite(amount) || amount <= 0) return 'Informe um valor maior que zero.';
@@ -162,10 +219,14 @@ export class BankStore {
     }
   }
 
-  async purchase(category: string, amount: number, installments: number): Promise<string | null> {
+  async purchase(category: string, amount: number, installments: number,
+                 fundingSource: FundingSource = 'CARD'): Promise<string | null> {
     try {
-      const purchase = await firstValueFrom(this.api.purchase(category, round(amount), installments));
-      // The card pays, so the card balance is the figure that moved.
+      const purchase = await firstValueFrom(
+        this.api.purchase(category, round(amount), installments, fundingSource));
+      // On the prepaid path the card pays, so the card balance is the figure
+      // that moved. On credit nothing was spent — a debt was created — and the
+      // API says so by leaving the remaining balance out.
       if (purchase.remainingCardBalance !== null) this.cardBalance.set(purchase.remainingCardBalance);
       this.purchases.update(items => [purchase, ...items]);
       return null;
@@ -195,6 +256,8 @@ export class BankStore {
     this.cards.set([]);
     this.purchases.set([]);
     this.adminSummary.set(null);
+    this.invoices.set([]);
+    this.invoiceItems.set([]);
     this.monthlyRate.set(null);
   }
 }
@@ -211,9 +274,17 @@ export function describe(error: unknown): string {
     case 401: return 'Sua sessão expirou. Entre novamente.';
     case 403: return 'Seu perfil não tem permissão para esta operação.';
     case 409: return 'Requisição duplicada com dados diferentes.';
-    case 422: return error.error?.code === 'INSUFFICIENT_FUNDS'
-      ? 'Saldo insuficiente para esta compra.'
-      : 'Operação recusada pelas regras da conta.';
+    case 422:
+      switch (error.error?.code) {
+        case 'INSUFFICIENT_FUNDS': return 'Saldo insuficiente para esta operação.';
+        // The statement itself refused: already paid, already closed, or asked
+        // for more than it owes. Retrying unchanged will fail the same way.
+        case 'STATEMENT_STATE': return 'Esta fatura não aceita esse pagamento. Confira o valor em aberto.';
+        default: return 'Operação recusada pelas regras da conta.';
+      }
+    case 404: return error.error?.code === 'STATEMENT_NOT_FOUND'
+      ? 'Fatura não encontrada.'
+      : 'Recurso não encontrado.';
     case 429: return 'Sistema com alto volume. Tente novamente em instantes.';
     case 503: return 'Autorização indisponível no momento. Nenhum valor foi debitado.';
     default: return error.error?.violations?.[0]?.message ?? 'Não foi possível concluir a operação.';

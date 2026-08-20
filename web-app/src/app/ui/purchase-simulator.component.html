@@ -4,6 +4,19 @@
 </section>
 <section class="simulator-grid">
   <form class="panel form-panel" (ngSubmit)="simulated.emit(intent())">
+    <label for="funding">Forma de pagamento</label>
+    <select id="funding" name="funding" [ngModel]="fundingSource()" (ngModelChange)="fundingSource.set($event)">
+      <option value="CARD">Saldo do cartão · debitado agora</option>
+      <option value="CREDIT">Crédito · entra na fatura</option>
+    </select>
+    <small>
+      @if (fundingSource() === 'CARD') {
+        O valor sai do saldo carregado no cartão neste momento.
+      } @else {
+        Nada é debitado agora. O valor entra na fatura do ciclo e é pago da carteira.
+      }
+    </small>
+
     <label for="category">Categoria do estabelecimento</label>
     <select id="category" name="category" [ngModel]="category()" (ngModelChange)="category.set($event)">
       @for (item of categories; track item) { <option [value]="item">{{ item }}</option> }
@@ -31,7 +44,13 @@
         <div><span>Última parcela</span><b>{{ result.lastInstallmentAmount | currency:'BRL' }}</b></div>
       }
       <div><span>Total</span><b>{{ result.total | currency:'BRL' }}</b></div>
-      <p class="disclaimer">O valor total é debitado do saldo do cartão no momento da confirmação.</p>
+      <p class="disclaimer">
+        @if (fundingSource() === 'CARD') {
+          O valor total é debitado do saldo do cartão no momento da confirmação.
+        } @else {
+          O valor total entra na fatura do ciclo atual e nada é debitado agora.
+        }
+      </p>
       <button class="white-button" (click)="confirmed.emit(intent())" [disabled]="busy()">Confirmar compra</button>
     } @else {
       <span class="result-icon">◇</span><h3>O resultado aparece aqui</h3><p>Preencha os dados para ver as condições.</p>
