@@ -77,7 +77,11 @@ class OutboxRelayTest {
         RecordingPublisher publisher = new RecordingPublisher();
         OutboxRelay relay = new OutboxRelay(entityManager, publisher, metrics, java.time.Clock.systemUTC(), 100, 10);
 
-        relay.drain();
+        // Drained until this event is handled rather than exactly once. The relay
+        // takes a bounded batch, and every other test in the suite leaves events
+        // behind it: asserting after a single drain made this test depend on how
+        // many events the tests that ran before it happened to record.
+        drainUntilPublished(relay, customer);
         assertNotNull(eventsFor(customer).get(0).publishedAt);
         long deliveredForCustomer = publisher.countFor(customer);
         assertEquals(1, deliveredForCustomer);
@@ -85,6 +89,16 @@ class OutboxRelayTest {
         // Draining again must not republish what was already delivered.
         relay.drain();
         assertEquals(1, publisher.countFor(customer), "a delivered event was published twice");
+    }
+
+    /** Drains until this customer's event is published, or gives up loudly. */
+    private void drainUntilPublished(OutboxRelay relay, UUID customer) {
+        for (int attempt = 0; attempt < 50; attempt++) {
+            relay.drain();
+            if (eventsFor(customer).get(0).publishedAt != null) {
+                return;
+            }
+        }
     }
 
     @Test
