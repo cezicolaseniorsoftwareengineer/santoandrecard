@@ -89,15 +89,27 @@ when the suite earns it and never lowered to make a build pass.
 
 ## Run it, and see it working
 
+Three processes, in this order, each in its own terminal. The Docker engine has
+to be running first — Docker Desktop on Windows and macOS, `systemctl start
+docker` on Linux.
+
 ```bash
 docker compose up -d                    # PostgreSQL, Redis, Kafka, Keycloak
 cd card-service && mvn quarkus:dev      # API on :8080, Swagger at /q/swagger-ui
-cd ../web-app && npm ci && npm start    # interface on :4420
+cd ../web-app && npm ci && npm start    # interface on 127.0.0.1:4420
 ```
 
-Then open `http://localhost:4420`, create an account through "Criar minha conta"
+No build step precedes either application: `quarkus:dev` and `npm start` compile
+on their own, so `mvn compile` and `npm run build` are not part of this path. The
+first front-end compile takes around 70 seconds, and port 4420 refuses
+connections until it finishes.
+
+Then open `http://127.0.0.1:4420`, create an account through "Criar minha conta"
 — the registration happens on Keycloak, and the application never sees a
 password — issue a card, fund it and buy something.
+
+The per-platform commands, the prerequisites and what to check before deciding
+something is broken are under [Getting started](#getting-started).
 
 To watch what it does while you do it:
 
@@ -372,6 +384,29 @@ short, as above, or enable long paths once:
 git config --global core.longpaths true
 ```
 
+### Start the Docker engine first
+
+`docker compose up` talks to a daemon; the CLI on `PATH` is not the daemon. This
+is the one step that genuinely differs per platform.
+
+- **Windows** — open Docker Desktop and wait for *Engine running*. While it is
+  stopped the command does not fail as a missing tool, it fails with
+  `error during connect ... the system cannot find the file specified`, which
+  points at the engine rather than at the command. Settings, General,
+  *Start Docker Desktop when you sign in* removes the step from the routine.
+- **macOS** — the same: Docker Desktop, Colima or OrbStack has to be running.
+  `open -a Docker` starts it from the terminal.
+- **Linux** — there is no desktop application. The daemon is a system service:
+  `sudo systemctl start docker`, or `sudo systemctl enable --now docker` to have
+  it start on boot. Without membership of the `docker` group every command needs
+  `sudo`: `sudo usermod -aG docker $USER`, then log out and back in.
+
+One check settles it on all three:
+
+```bash
+docker info > /dev/null && echo "engine running"
+```
+
 ### Prerequisites
 
 | Tool | Version | Checked with |
@@ -414,24 +449,43 @@ the longest; the application will not authenticate anyone until it is up.
 
 ### 2. Run the API
 
+macOS and Linux:
+
 ```bash
 cd card-service && mvn quarkus:dev
+```
+
+Windows, PowerShell — which has no `&&`, so the two commands are two lines:
+
+```powershell
+cd card-service
+mvn quarkus:dev
 ```
 
 Swagger UI is then at `http://localhost:8080/q/swagger-ui`. Create a card with
 `POST /api/v1/cards` and a unique `Idempotency-Key` header.
 
+`mvn compile` beforehand is not needed and changes nothing: `quarkus:dev`
+compiles on start and recompiles on every save.
+
 ### 3. Run the interface
+
+Identical on all three, except that PowerShell needs the `cd` on its own line:
 
 ```bash
 cd web-app
-npm ci
+npm ci      # first checkout only, or when package-lock.json changes
 npm start
 ```
 
-The interface is at `http://localhost:4420`. Create an account through "Criar minha
-conta", which enters Keycloak's registration screen — the application never sees a
-password.
+The interface is at `http://127.0.0.1:4420`. Create an account through "Criar
+minha conta", which enters Keycloak's registration screen — the application never
+sees a password.
+
+`npm run build` beforehand is not needed either: `build` produces the production
+bundle in `dist/` for the container image, while `start` runs the dev server and
+compiles on its own. And `npm build` is not a command — npm requires `npm run`
+for any script that is not one of its built-ins.
 
 ### 4. Stop
 
@@ -439,6 +493,136 @@ password.
 docker compose down          # keeps the data
 docker compose down -v       # discards it, which is safe: see ADR-004
 ```
+
+### Killing a process that stayed behind
+
+Ctrl+C in the terminal that owns a process is always the first answer. This
+section is for the other case: the terminal was closed, the machine slept, a
+`quarkus:dev` survived its window, and the next start fails with the port already
+in use. The routine is the same everywhere — find who holds the port, then end
+that process — and only the commands differ.
+
+Two traps worth naming before the commands.
+
+**In PowerShell, `$PID` is the shell's own process.** It is an automatic variable
+holding the PID of the terminal you are typing in, so `taskkill /F /T /PID $PID`
+closes your terminal and leaves the server running. The PID has to come from the
+port, never from `$PID`.
+
+**`/T` ends the whole process tree.** That is what you want for `npm start`,
+which runs the dev server as a child of npm — killing npm alone can leave the
+child holding 4420. It is also why the wrong PID is more destructive here than a
+plain kill would be.
+
+**One command for all of it — `scripts/stop-dev.ps1` and `scripts/stop-dev.sh`**
+
+Both scripts end every process this project starts and leave the editor alone.
+Selection is an allow-list: a process is a candidate only if it holds 8080 or
+4420, or if its command line names a dev command of this repository. Descendants
+are included, because `npm start` runs the dev server as a child and ending the
+parent alone leaves the child holding the port. Shells and console hosts are
+never signalled, whatever they match — a terminal whose working directory is
+inside the repository looks exactly like a dev server to a path filter, and the
+first dry run of the PowerShell script duly offered to close the very shells it
+was running in.
+
+```powershell
+./scripts/stop-dev.ps1 -WhatIf          # report only, end nothing
+./scripts/stop-dev.ps1
+./scripts/stop-dev.ps1 -IncludeContainers
+```
+
+```bash
+./scripts/stop-dev.sh --dry-run
+./scripts/stop-dev.sh
+./scripts/stop-dev.sh --containers
+```
+
+Both finish by printing whether 8080 and 4420 are actually free, because
+"stopped" is a claim and a free port is the evidence. Run the dry form first the
+first time: it prints what it would end, and what it is protecting.
+
+Why not simply end every `java` and `node`: on this machine that would have taken
+the editor's Java language server and a `node` process serving agent tooling,
+neither of which belongs to this project. The result looks like the editor
+crashed, and nothing in the command says otherwise.
+
+### The same thing by hand
+
+**Windows — PowerShell**
+
+```powershell
+# Who holds the port
+Get-NetTCPConnection -LocalPort 4420 -State Listen | Select-Object OwningProcess
+
+# End it, and its children, by that PID
+taskkill /F /T /PID <pid>
+```
+
+In one step, without copying the number by hand:
+
+```powershell
+Get-NetTCPConnection -LocalPort 4420 -State Listen |
+  ForEach-Object { taskkill /F /T /PID $_.OwningProcess }
+```
+
+`Stop-Process -Id <pid> -Force` is the native equivalent, but it does not take
+the process tree — for `npm start`, prefer `taskkill /F /T`.
+
+**macOS and Linux**
+
+```bash
+# Who holds the port
+lsof -i :4420
+
+# End it — SIGTERM first, which lets it shut down cleanly
+kill $(lsof -ti tcp:4420)
+
+# Only if it ignores that
+kill -9 $(lsof -ti tcp:4420)
+```
+
+`lsof -ti` prints the PIDs alone, which is what makes the one-liner safe. On a
+Linux box without `lsof`, `ss -ltnp | grep :4420` or `fuser -k 4420/tcp` do the
+same job.
+
+**By name rather than by port**, when the port is already free but a stale
+process is still running:
+
+```bash
+pkill -f 'quarkus:dev'     # macOS, Linux
+pkill -f 'ng serve'
+```
+
+```powershell
+Get-Process -Name java, node -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+The PowerShell form is blunt — it ends every `java` and `node` on the machine,
+including processes that have nothing to do with this project. Prefer the
+port-scoped command above unless you know nothing else is running.
+
+**The containers are a separate matter.** They are not terminal processes and
+Ctrl+C does not reach them; `docker compose down` is what stops them, and the
+ports they hold (5432, 6379, 9092, 8180) stay bound until it runs.
+
+### Before deciding something is broken
+
+- **The first front-end compile takes around 70 seconds**, and port 4420 refuses
+  connections throughout. A browser cannot tell that apart from a server that
+  will never arrive. Wait for `Application bundle generation complete`.
+- **Use `http://127.0.0.1:4420`, not `localhost`.** The dev server binds IPv4
+  only (`"host": "127.0.0.1"` in `angular.json`), so where `localhost` resolves
+  to `::1` first the browser reports a dead server that is in fact listening.
+- **Keycloak is the slowest container to become useful** and nothing
+  authenticates until it answers:
+  `curl -sf http://localhost:8180/realms/card-platform/.well-known/openid-configuration`
+- **`config.json` returning 404 in development is correct.** The endpoints are
+  read at runtime so one image serves every environment; absent, the interface
+  falls back to the documented local endpoints.
+- **Ports:** 8080 API, 4420 interface, 5432 PostgreSQL, 6379 Redis, 9092 Kafka,
+  8180 Keycloak, and under the observability profile 3000 Grafana,
+  9090 Prometheus, 4317/4318 Tempo.
 
 ## Validate
 
