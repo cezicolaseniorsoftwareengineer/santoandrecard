@@ -22,4 +22,15 @@ public class InsufficientFundsException extends RuntimeException {
     public static InsufficientFundsException card() {
         return new InsufficientFundsException("card balance is insufficient for this purchase");
     }
+
+    /**
+     * The purchase would take the customer past their credit limit.
+     *
+     * <p>Distinct from an empty card: nothing is missing from an account, the
+     * issuer is simply unwilling to lend more. A customer told they have no
+     * balance when they have no *limit* is told the wrong thing.
+     */
+    public static InsufficientFundsException creditLimit() {
+        return new InsufficientFundsException("the purchase exceeds the available credit limit");
+    }
 }
