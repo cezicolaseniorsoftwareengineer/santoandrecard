@@ -17,9 +17,6 @@ public enum FundingSource {
      * The issuer's credit. Creates a receivable that is billed by the cycle it
      * falls in and settled when the customer pays that statement.
      */
-    CREDIT;
-
-    public boolean isBillable() {
-        return this == CREDIT;
-    }
+    CREDIT
 }
+

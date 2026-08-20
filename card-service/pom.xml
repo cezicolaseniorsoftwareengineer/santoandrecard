@@ -147,6 +147,60 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <executions>
+                    <!--
+                        The Quarkus extension instruments the application's own
+                        classloader, which is what a @QuarkusTest exercises. A
+                        plain unit test runs in the surefire JVM instead, and its
+                        execution was invisible: CardNumberTest alone is 54 cases
+                        against the domain and counted for nothing, so the report
+                        understated coverage and the gate failed on classes that
+                        were in fact tested.
+
+                        This agent records the surefire JVM. The two data files
+                        are merged before the check, so the figure covers both
+                        kinds of test rather than whichever kind happens to be
+                        instrumented.
+                    -->
+                    <execution>
+                        <id>agent-for-unit-tests</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <destFile>${project.build.directory}/jacoco-unit.exec</destFile>
+                            <propertyName>surefireArgLine</propertyName>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>merge-coverage</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>merge</goal>
+                        </goals>
+                        <configuration>
+                            <fileSets>
+                                <fileSet>
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>jacoco-unit.exec</include>
+                                        <include>jacoco-quarkus.exec</include>
+                                    </includes>
+                                </fileSet>
+                            </fileSets>
+                            <destFile>${project.build.directory}/jacoco-merged.exec</destFile>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>merged-report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+                            <outputDirectory>${project.build.directory}/jacoco-report</outputDirectory>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>check-coverage</id>
                         <phase>verify</phase>
@@ -154,7 +208,7 @@
                             <goal>check</goal>
                         </goals>
                         <configuration>
-                            <dataFile>${project.build.directory}/jacoco-quarkus.exec</dataFile>
+                            <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>
@@ -201,6 +255,9 @@
                          purpose:
                          mvn test -Dgroups=benchmark -Dtest.excludedGroups=none -->
                     <excludedGroups>${test.excludedGroups}</excludedGroups>
+                    <!-- Carries the JaCoCo agent into the JVM that runs the plain
+                         unit tests, so their coverage is recorded too. -->
+                    <argLine>@{surefireArgLine}</argLine>
                 </configuration>
             </plugin>
         </plugins>
