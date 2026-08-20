@@ -5,6 +5,7 @@ import { Session, UserRole } from './bank.models';
 interface TokenResponse {
   readonly access_token: string;
   readonly refresh_token?: string;
+  readonly id_token?: string;
   readonly expires_in: number;
 }
 
@@ -31,6 +32,12 @@ const REFRESH_KEY = 'auth.refresh_token';
 export class AuthService {
   private readonly accessToken = signal<string | null>(null);
   private readonly claims = signal<AccessTokenClaims | null>(null);
+  /**
+   * Kept only to be handed back on logout as `id_token_hint`. Without it
+   * Keycloak cannot tell which session is ending, so it stops on a confirmation
+   * page instead of returning to the application.
+   */
+  private idToken: string | null = null;
   private refreshTimer: number | null = null;
 
   readonly session = computed<Session | null>(() => {
@@ -47,9 +54,15 @@ export class AuthService {
     return this.accessToken();
   }
 
-  /** Redirects the browser to Keycloak. Resolves only if the redirect is blocked. */
+  /**
+   * Redirects the browser to Keycloak. Resolves only if the redirect is blocked.
+   *
+   * `prompt=login` forces the credentials screen even when a provider session
+   * cookie survives. Signing out and pressing "Entrar" has to be an opportunity
+   * to choose an account, not a silent re-entry into the previous one.
+   */
   async login(): Promise<void> {
-    return this.authorize('auth');
+    return this.authorize('auth', { prompt: 'login' });
   }
 
   /**
@@ -62,7 +75,10 @@ export class AuthService {
     return this.authorize('registrations');
   }
 
-  private async authorize(endpoint: 'auth' | 'registrations'): Promise<void> {
+  private async authorize(
+    endpoint: 'auth' | 'registrations',
+    extra: Record<string, string> = {}
+  ): Promise<void> {
     const verifier = this.randomString(64);
     const state = this.randomString(32);
     sessionStorage.setItem(VERIFIER_KEY, verifier);
@@ -75,7 +91,8 @@ export class AuthService {
       scope: AUTH_CONFIG.scope,
       state,
       code_challenge: await this.challengeFor(verifier),
-      code_challenge_method: 'S256'
+      code_challenge_method: 'S256',
+      ...extra
     });
     window.location.assign(`${AUTH_CONFIG.issuer}/protocol/openid-connect/${endpoint}?${params}`);
   }
@@ -117,21 +134,19 @@ export class AuthService {
   }
 
   logout(): void {
-    const refreshToken = sessionStorage.getItem(REFRESH_KEY);
+    const idToken = this.idToken;
     this.clear();
     const params = new URLSearchParams({
       client_id: AUTH_CONFIG.clientId,
       post_logout_redirect_uri: AUTH_CONFIG.redirectUri
     });
-    // Ending the Keycloak session too; clearing local state alone would leave the
-    // provider session alive and log the user straight back in.
-    if (refreshToken) {
-      void fetch(`${AUTH_CONFIG.issuer}/protocol/openid-connect/logout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ client_id: AUTH_CONFIG.clientId, refresh_token: refreshToken })
-      }).catch(() => undefined);
-    }
+    // The hint is what makes this a logout rather than a question: with it
+    // Keycloak ends the session and redirects straight back to the sign-in
+    // screen; without it the browser stops on a confirmation page, and a user
+    // who does not confirm keeps a live provider session behind a signed-out
+    // interface. A single front-channel redirect also avoids racing a
+    // background request against the navigation that cancels it.
+    if (idToken) params.set('id_token_hint', idToken);
     window.location.assign(`${AUTH_CONFIG.issuer}/protocol/openid-connect/logout?${params}`);
   }
 
@@ -157,6 +172,7 @@ export class AuthService {
       const token = (await response.json()) as TokenResponse;
       this.accessToken.set(token.access_token);
       this.claims.set(this.decode(token.access_token));
+      if (token.id_token) this.idToken = token.id_token;
       if (token.refresh_token) sessionStorage.setItem(REFRESH_KEY, token.refresh_token);
       this.scheduleRefresh(token.expires_in);
       return this.session() !== null;
@@ -182,6 +198,7 @@ export class AuthService {
     this.refreshTimer = null;
     this.accessToken.set(null);
     this.claims.set(null);
+    this.idToken = null;
     sessionStorage.removeItem(REFRESH_KEY);
   }
 

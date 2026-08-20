@@ -35,8 +35,11 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:4420/*", "http://app.card-platform.localhost/*"],
-      "webOrigins": ["http://localhost:4420", "http://app.card-platform.localhost"],
+      "redirectUris": ["http://localhost:4420/*", "http://127.0.0.1:4420/*", "http://app.card-platform.localhost/*"],
+      "webOrigins": ["http://localhost:4420", "http://127.0.0.1:4420", "http://app.card-platform.localhost"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:4420/*##http://127.0.0.1:4420/*##http://app.card-platform.localhost/*"
+      },
       "protocol": "openid-connect",
       "protocolMappers": [
         {
