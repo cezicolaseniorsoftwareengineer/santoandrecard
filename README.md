@@ -1,5 +1,29 @@
 # Banco Santo André Card Platform
 
+Admin
+<img width="1279" height="605" alt="image" src="https://github.com/user-attachments/assets/60786571-418d-4a22-b6df-07e07962ee44" />
+
+<img width="1283" height="595" alt="image" src="https://github.com/user-attachments/assets/098f1aee-abc5-4e09-a3e2-4d5ec2c150ef" />
+
+User
+
+<img width="1274" height="611" alt="image" src="https://github.com/user-attachments/assets/22e1dc16-752c-4aa0-80fe-0b77ea264907" />
+
+Plataform
+
+<img width="327" height="206" alt="image" src="https://github.com/user-attachments/assets/8a9c6426-a418-4b0c-92aa-1f62113b8ac4" />
+
+<img width="1283" height="598" alt="image" src="https://github.com/user-attachments/assets/2b2ebacf-7d4e-4a8c-a7f4-a55b727ccd70" />
+<img width="1278" height="610" alt="image" src="https://github.com/user-attachments/assets/78bb31ff-f2dd-4742-8d60-852cea79d8a7" />
+<img width="1266" height="593" alt="image" src="https://github.com/user-attachments/assets/bc2257df-f629-4620-9ed0-896f93e1e06d" />
+<img width="1266" height="598" alt="image" src="https://github.com/user-attachments/assets/bf0323eb-53d5-4e87-af19-e1505b6de42d" />
+
+
+
+
+
+
+
 [![build](https://github.com/cezicolaseniorsoftwareengineer/santoandrecard/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/cezicolaseniorsoftwareengineer/santoandrecard/actions/workflows/build.yml)
 [![Java 17](https://img.shields.io/badge/Java-17_LTS-b07219)](https://adoptium.net/)
 [![Quarkus 3.33](https://img.shields.io/badge/Quarkus-3.33-4695eb)](https://quarkus.io/)
