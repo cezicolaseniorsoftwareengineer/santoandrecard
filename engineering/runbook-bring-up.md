@@ -225,15 +225,19 @@ Full detail and the recorded verification are in `k8s/README.md`. The sequence:
 
 ```bash
 mvn -pl card-service -am clean package
-docker build -f card-service/src/main/docker/Dockerfile.jvm \
-  -t card-service:0.2.0 card-service
+docker build -f card-service/src/main/docker/Dockerfile.jvm   -t card-service:0.3.0 card-service
+docker build -t web-app:0.3.0 web-app
 
 kubectl create namespace card-platform
-kubectl -n card-platform create secret generic card-service-secrets \
-  --from-literal=db-password="$(openssl rand -base64 24)"
+# Two keys, not one: Keycloak crash-loops without the second.
+kubectl -n card-platform create secret generic card-service-secrets   --from-literal=db-password="$(openssl rand -base64 24)"   --from-literal=keycloak-admin-password="$(openssl rand -base64 24)"
+
+# The realm lives outside the kustomization root, so its ConfigMap is created
+# out-of-band.
+kubectl -n card-platform create configmap keycloak-realm   --from-file=keycloak/realm-card-platform.json
 
 kubectl apply -k k8s/
-kubectl -n card-platform rollout status deploy/card-service --timeout=180s
+kubectl -n card-platform rollout status deploy/card-service --timeout=300s
 ```
 
 Check:
@@ -244,9 +248,20 @@ kubectl -n card-platform port-forward svc/card-service 8080:80
 curl -fsS http://localhost:8080/q/health/ready
 ```
 
-Check: `postgres-0`, `keycloak` and `card-service` all `1/1 Running`, and
-`/q/health/ready` returns `UP`. On a cluster that does not share Docker's image
-store, side-load first: `kind load docker-image card-service:0.2.0`.
+Check: all seven pods `1/1 Running` and `/q/health/ready` returning `UP`.
+Keycloak takes minutes on its first start — it rebuilds its configuration and
+imports the realm before serving anything, and the startup probe is what holds
+the liveness probe back until it finishes.
+
+The tags above are the ones the manifests name. Building a different tag leaves
+the pod in `ImagePullBackOff`, because `imagePullPolicy` is `IfNotPresent` and
+no registry is configured. On a cluster that does not share Docker's image store
+— which includes the kind-based provisioner Docker Desktop now ships — side-load
+first:
+
+```bash
+kind load docker-image card-service:0.3.0 web-app:0.3.0
+```
 
 ---
 
