@@ -224,9 +224,12 @@ mvn -pl card-service package
 Full detail and the recorded verification are in `k8s/README.md`. The sequence:
 
 ```bash
+# Images come from the registry by default; kustomization.yaml holds the tag.
+# To run a local build instead:
 mvn -pl card-service -am clean package
-docker build -f card-service/src/main/docker/Dockerfile.jvm   -t card-service:0.3.0 card-service
-docker build -t web-app:0.3.0 web-app
+docker build -f card-service/src/main/docker/Dockerfile.jvm   -t card-service:local card-service
+docker build -t web-app:local web-app
+cd k8s && kustomize edit set image card-service=card-service:local   web-app=web-app:local && cd ..
 
 kubectl create namespace card-platform
 # Two keys, not one: Keycloak crash-loops without the second.
@@ -253,14 +256,14 @@ Keycloak takes minutes on its first start — it rebuilds its configuration and
 imports the realm before serving anything, and the startup probe is what holds
 the liveness probe back until it finishes.
 
-The tags above are the ones the manifests name. Building a different tag leaves
-the pod in `ImagePullBackOff`, because `imagePullPolicy` is `IfNotPresent` and
-no registry is configured. On a cluster that does not share Docker's image store
-— which includes the kind-based provisioner Docker Desktop now ships — side-load
-first:
+The image identity lives in `k8s/kustomization.yaml` and nowhere else, so there
+is one place to change per release and nothing to keep in sync by hand. A local
+tag is never pulled — `imagePullPolicy` is `IfNotPresent` — so on a cluster that
+does not share Docker's image store, which includes the kind-based provisioner
+Docker Desktop now ships, side-load first:
 
 ```bash
-kind load docker-image card-service:0.3.0 web-app:0.3.0
+kind load docker-image card-service:local web-app:local
 ```
 
 ---

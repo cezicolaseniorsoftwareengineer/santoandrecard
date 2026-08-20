@@ -6,41 +6,56 @@ Target: any conformant cluster. Verified layout only; see "Verification status".
 
 - A reachable cluster (`kubectl cluster-info` must succeed).
 - An ingress-nginx controller, for the hosts in `ingress.yaml`.
-- Both images already in the cluster's image store: `card-service:0.3.0` and
-  `web-app:0.3.0`. `imagePullPolicy` is `IfNotPresent` and no registry is
-  configured, so nothing is ever pulled: an image the cluster does not hold
-  leaves the pod in `ImagePullBackOff`.
+- The images. Releases publish them to the GitHub Container Registry and
+  `kustomization.yaml` points at that tag, so a cluster with internet access
+  needs nothing built locally. Building locally is still supported and is what
+  the steps below cover.
 
-The tags below are the ones `card-service.yaml` and `web-app.yaml` name.
-Building a tag the manifests do not name is the most common way this deployment
-fails, and it fails quietly — the pod simply never starts.
+The image identity lives in `kustomization.yaml` and nowhere else. It used to be
+written into two manifests and two documents, and they drifted — the manifests
+named one tag while the runbook taught another, and the only symptom was a pod
+stuck in `ImagePullBackOff`.
 
-## 1. Build both images
+## 1. Images
+
+### From the registry (nothing to build)
+
+Every release publishes both images. Point the kustomization at the version you
+want:
+
+```sh
+cd k8s && kustomize edit set image   ghcr.io/cezicolaseniorsoftwareengineer/card-service=*:v0.4.0   ghcr.io/cezicolaseniorsoftwareengineer/web-app=*:v0.4.0
+```
+
+### Or build them locally
 
 ```sh
 mvn -pl card-service -am clean package
-docker build -f card-service/src/main/docker/Dockerfile.jvm   -t card-service:0.3.0 card-service
-docker build -t web-app:0.3.0 web-app
+docker build -f card-service/src/main/docker/Dockerfile.jvm   -t card-service:local card-service
+docker build -t web-app:local web-app
+
+cd k8s && kustomize edit set image card-service=card-service:local   web-app=web-app:local
 ```
 
-Docker Desktop's own Kubernetes shares the Docker image store, so nothing more
-is needed there. Every other local cluster — including the kind-based
-provisioner Docker Desktop now ships — keeps a separate containerd store and
-needs the images side-loaded:
+`imagePullPolicy` is `IfNotPresent`, so a local tag is never pulled and must
+already be in the cluster's store. Docker Desktop's own Kubernetes shares the
+Docker store; every other local cluster — including the kind-based provisioner
+Docker Desktop now ships — keeps a separate containerd store and needs the
+images side-loaded:
 
 ```sh
-kind load docker-image card-service:0.3.0 web-app:0.3.0   # kind
-minikube image load card-service:0.3.0                    # minikube
+kind load docker-image card-service:local web-app:local   # kind
+minikube image load card-service:local                    # minikube
 ```
 
-With no `kind` binary available, stream them into the node directly:
+With no `kind` binary, stream them into the node directly:
 
 ```sh
-docker save card-service:0.3.0 |   docker exec -i <node-container> ctr -n k8s.io images import -
+docker save card-service:local |   docker exec -i <node-container> ctr -n k8s.io images import -
 ```
 
-Check what the cluster actually holds before applying, because `docker images`
-answers for the wrong store:
+Check what the cluster actually holds, because `docker images` answers for the
+wrong store:
 
 ```sh
 docker exec <node-container> crictl images | grep -E 'card-service|web-app'
