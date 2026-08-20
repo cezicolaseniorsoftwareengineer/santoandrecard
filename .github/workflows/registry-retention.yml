@@ -1,0 +1,48 @@
+name: registry retention
+
+# Publishing on every push to main leaves a digest behind on every push. None
+# of them is ever referenced again once the next one lands, and nothing removes
+# them: the registry grows until somebody notices the storage and deletes
+# packages by hand, which is the point at which a released image gets deleted
+# by accident.
+#
+# This prunes what is safe to lose and refuses to touch what is not.
+on:
+  schedule:
+    # Sunday, early. Nothing depends on the timing; it only has to be regular.
+    - cron: '17 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be deleted without deleting it'
+        type: boolean
+        default: true
+
+permissions:
+  packages: write
+
+jobs:
+  prune:
+    name: prune ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [card-service, web-app]
+    steps:
+      - name: Prune untagged and stale development versions
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.image }}
+          package-type: container
+          # Every release tag is kept. `v*` is what the manifests reference and
+          # what a release note points at, so deleting one turns a documented
+          # version into a 404 — the exact failure this pipeline was changed to
+          # prevent. `latest` and `main` are excluded for the same reason: they
+          # are what a reader following the README pulls.
+          ignore-versions: '^(v.*|latest|main)$'
+          # Keeps the recent development digests, so a bisect over the last
+          # fortnight still has images to pull.
+          min-versions-to-keep: 20
+          delete-only-untagged-versions: false
+          dry-run: ${{ inputs.dry_run == true }}
