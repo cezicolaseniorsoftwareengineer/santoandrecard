@@ -1,5 +1,18 @@
 # Banco Santo André Card Platform
 
+[![build](https://github.com/cezicolaseniorsoftwareengineer/santoandrecard/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/cezicolaseniorsoftwareengineer/santoandrecard/actions/workflows/build.yml)
+[![Java 17](https://img.shields.io/badge/Java-17_LTS-b07219)](https://adoptium.net/)
+[![Quarkus 3.33](https://img.shields.io/badge/Quarkus-3.33-4695eb)](https://quarkus.io/)
+[![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-336791)](https://www.postgresql.org/)
+[![Angular 21](https://img.shields.io/badge/Angular-21-dd0031)](https://angular.dev/)
+
+That badge covers eight jobs on every push: the unit and API suite, the money
+invariants under concurrency against real PostgreSQL, the packaged application
+booting against real PostgreSQL so Flyway applies the migrations and Hibernate
+validates the mapping, the front-end tests and production build, a browser
+journey through a real Keycloak, dependency scanning of the resolved tree, and
+CodeQL over both languages.
+
 A card issuing and ledger platform, built to show what the engineering behind
 money looks like when every claim on this page is attached to the test that
 proves it. Banco Santo André is a fictitious institution; the code is original,
