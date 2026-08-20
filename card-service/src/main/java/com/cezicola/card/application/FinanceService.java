@@ -4,6 +4,7 @@ import com.cezicola.card.adapter.out.persistence.InterestPolicyEntity;
 import com.cezicola.card.adapter.out.persistence.PurchaseEntity;
 import com.cezicola.card.adapter.out.persistence.WalletEntity;
 import com.cezicola.card.domain.InterestCalculator;
+import com.cezicola.card.domain.FundingSource;
 import com.cezicola.card.domain.JournalEntry;
 import com.cezicola.card.domain.LedgerAccount;
 import com.cezicola.card.domain.PurchasePlan;
@@ -131,8 +132,21 @@ public class FinanceService {
     @Transactional
     public PurchaseView purchase(UUID tenantId, UUID customerId, String merchantCategory,
                                  BigDecimal principal, int installments) {
+        return purchase(tenantId, customerId, merchantCategory, principal, installments, FundingSource.CARD);
+    }
+
+    /**
+     * A purchase on the funding source the caller chose.
+     *
+     * <p>The source is fixed here and never revisited: it decides which account
+     * is debited, and changing it afterwards would rewrite postings that have
+     * already been made. A change of mind is a reversal and a new purchase.
+     */
+    @Transactional
+    public PurchaseView purchase(UUID tenantId, UUID customerId, String merchantCategory,
+                                 BigDecimal principal, int installments, FundingSource fundingSource) {
         return backpressure.execute(
-                () -> executePurchase(tenantId, customerId, merchantCategory, principal, installments));
+                () -> executePurchase(tenantId, customerId, merchantCategory, principal, installments, fundingSource));
     }
 
     /**
@@ -146,7 +160,8 @@ public class FinanceService {
      * later.
      */
     private PurchaseView executePurchase(UUID tenantId, UUID customerId, String merchantCategory,
-                                          BigDecimal principal, int installments) {
+                                          BigDecimal principal, int installments,
+                                          FundingSource fundingSource) {
         if (merchantCategory == null || merchantCategory.isBlank() || merchantCategory.length() > 64) {
             throw new IllegalArgumentException("merchantCategory must contain 1 to 64 characters");
         }
@@ -157,15 +172,25 @@ public class FinanceService {
             throw new MerchantAuthorizationUnavailableException();
         }
 
-        // The card is what pays. The wallet row is still locked first, but only as
-        // the per-customer mutex: the spendable figure is a sum over postings, so
-        // there is no row of its own to lock, and without serialising here two
-        // concurrent purchases could both read the same balance and both pass.
+        // The wallet row is locked as the per-customer mutex whichever source
+        // pays: both the prepaid balance and the outstanding receivable are sums
+        // over postings, so neither has a row of its own to lock, and without
+        // serialising here two concurrent purchases could both read the same
+        // figure and both pass.
         lockedWallet(tenantId, customerId);
-        BigDecimal available = cardBalance(tenantId, customerId);
-        if (available.compareTo(plan.total()) < 0) {
-            metrics.refused("purchase", "insufficient_funds");
-            throw InsufficientFundsException.card();
+        if (fundingSource == FundingSource.CARD) {
+            BigDecimal available = cardBalance(tenantId, customerId);
+            if (available.compareTo(plan.total()) < 0) {
+                metrics.refused("purchase", "insufficient_funds");
+                throw InsufficientFundsException.card();
+            }
+        } else {
+            BigDecimal limit = creditLimitOf(tenantId, customerId);
+            BigDecimal owed = ledger.balanceOf(tenantId, LedgerAccount.CUSTOMER_RECEIVABLE, customerId);
+            if (limit.subtract(owed).compareTo(plan.total()) < 0) {
+                metrics.refused("purchase", "credit_limit_exceeded");
+                throw InsufficientFundsException.creditLimit();
+            }
         }
         metrics.moneyMoved("purchase", plan.total());
         PurchaseEntity purchase = new PurchaseEntity();
@@ -181,6 +206,7 @@ public class FinanceService {
         purchase.lastInstallmentAmount = plan.lastInstallmentAmount();
         purchase.monthlyRate = plan.monthlyRate();
         purchase.createdAt = clock.instant();
+        purchase.fundingSource = fundingSource;
         entityManager.persist(purchase);
 
         // The card pays the full amount; the principal becomes a debt to the
@@ -188,13 +214,21 @@ public class FinanceService {
         // what makes interest visible in the book instead of being buried in a
         // single net movement.
         var postings = new java.util.ArrayList<JournalEntry.Posting>();
-        postings.add(JournalEntry.Posting.debit(LedgerAccount.CARD_PREPAID, customerId, plan.total()));
+        // Prepaid spends money the customer already handed over; credit creates a
+        // debt the issuer will collect. The account debited is the whole
+        // difference between the two products.
+        postings.add(fundingSource == FundingSource.CARD
+                ? JournalEntry.Posting.debit(LedgerAccount.CARD_PREPAID, customerId, plan.total())
+                : JournalEntry.Posting.debit(LedgerAccount.CUSTOMER_RECEIVABLE, customerId, plan.total()));
         postings.add(JournalEntry.Posting.credit(LedgerAccount.MERCHANT_PAYABLE, null, plan.principal()));
         if (plan.interest().signum() > 0) {
             postings.add(JournalEntry.Posting.credit(LedgerAccount.INTEREST_REVENUE, null, plan.interest()));
         }
         ledger.record(tenantId, new JournalEntry(
-                JournalEntry.Kind.PURCHASE, "Compra em " + purchase.merchantCategory, purchase.id, postings));
+                fundingSource == FundingSource.CARD
+                        ? JournalEntry.Kind.PURCHASE
+                        : JournalEntry.Kind.CREDIT_PURCHASE,
+                "Compra em " + purchase.merchantCategory, purchase.id, postings));
 
         outbox.record(tenantId, customerId, "purchase.authorised",
                 json("purchaseId", purchase.id, "customerId", customerId,
@@ -288,6 +322,26 @@ public class FinanceService {
                 from WalletEntity w where w.tenantId = :tenantId
                 """).setParameter("tenantId", tenantId).getSingleResult();
         return new AdminSummary((Long) values[0], money(values[1]), money(values[2]), money(values[3]));
+    }
+
+    /**
+     * The issuing limit on the customer's card.
+     *
+     * <p>Read from the card rather than from a policy table: the limit is a
+     * property of what was issued, and a purchase priced against a limit the
+     * card does not carry is a purchase nobody can explain afterwards.
+     */
+    private BigDecimal creditLimitOf(UUID tenantId, UUID customerId) {
+        return entityManager.createQuery("""
+                        select c.creditLimit from CardEntity c
+                        where c.tenantId = :tenantId and c.customerId = :customerId
+                        order by c.createdAt asc
+                        """, BigDecimal.class)
+                .setParameter("tenantId", tenantId)
+                .setParameter("customerId", customerId)
+                .setMaxResults(1)
+                .getResultStream().findFirst()
+                .orElseThrow(CardNotFoundException::forCustomer);
     }
 
     private WalletEntity lockedWallet(UUID tenantId, UUID customerId) {

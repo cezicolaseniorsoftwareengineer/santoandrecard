@@ -26,6 +26,16 @@ public enum LedgerAccount {
      * than creating one: the pair of postings is what proves nothing was minted.
      */
     CARD_PREPAID(Side.CREDIT, true),
+    /**
+     * What each customer owes the issuer on credit purchases.
+     *
+     * <p>An asset, and the mirror of the prepaid card: a prepaid purchase spends
+     * money the customer already handed over, while a credit purchase creates a
+     * debt the issuer will collect. Keeping them as different accounts is what
+     * lets available credit be computed from postings rather than from a stored
+     * number somebody has to remember to update.
+     */
+    CUSTOMER_RECEIVABLE(Side.DEBIT, true),
     /** Funds brought into the platform. */
     FUNDING(Side.DEBIT, false),
     /** What the issuer owes merchants for authorised purchases. */

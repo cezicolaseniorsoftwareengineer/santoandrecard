@@ -15,7 +15,11 @@ public record JournalEntry(Kind kind, String description, UUID referenceId, List
 
     public enum Kind {
         OPENING_BALANCE, TOP_UP, PURCHASE, CARD_LOAD,
-        AUTHORIZATION_HOLD, AUTHORIZATION_CAPTURE, AUTHORIZATION_REVERSAL, AUTHORIZATION_EXPIRY
+        AUTHORIZATION_HOLD, AUTHORIZATION_CAPTURE, AUTHORIZATION_REVERSAL, AUTHORIZATION_EXPIRY,
+        /** A credit purchase: the issuer pays the merchant and the customer owes it back. */
+        CREDIT_PURCHASE,
+        /** The customer settles a statement from their wallet. */
+        STATEMENT_PAYMENT
     }
 
     public JournalEntry {

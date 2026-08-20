@@ -1,7 +1,10 @@
 package com.cezicola.card.adapter.out.persistence;
 
+import com.cezicola.card.domain.FundingSource;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
@@ -25,4 +28,13 @@ public class PurchaseEntity {
     /** The administered rate this purchase was priced under, kept for audit. */
     @Column(name = "monthly_rate", nullable = false, precision = 9, scale = 6) public BigDecimal monthlyRate;
     @Column(name = "created_at", nullable = false) public Instant createdAt;
+    /**
+     * Where the money came from, fixed at authorization and never revisited.
+     *
+     * <p>`CARD` settles instantly against the prepaid balance. `CREDIT` creates a
+     * receivable that waits for a cycle to bill it. Only the second becomes a
+     * statement item, which is why this is recorded rather than inferred.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "funding_source", nullable = false, length = 16) public FundingSource fundingSource;
 }
