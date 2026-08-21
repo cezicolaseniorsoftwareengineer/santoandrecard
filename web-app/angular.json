@@ -23,7 +23,7 @@
           },
           "defaultConfiguration": "production"
         },
-        "serve": { "builder": "@angular/build:dev-server", "options": { "host": "127.0.0.1", "port": 4420 }, "configurations": { "production": { "buildTarget": "banco-santo-andre-web:build:production" }, "development": { "buildTarget": "banco-santo-andre-web:build:development" } }, "defaultConfiguration": "development" },
+        "serve": { "builder": "@angular/build:dev-server", "options": { "host": "localhost", "port": 4420 }, "configurations": { "production": { "buildTarget": "banco-santo-andre-web:build:production" }, "development": { "buildTarget": "banco-santo-andre-web:build:development" } }, "defaultConfiguration": "development" },
         "test": { "builder": "@angular/build:unit-test", "options": { "tsConfig": "tsconfig.spec.json" } }
       }
     }

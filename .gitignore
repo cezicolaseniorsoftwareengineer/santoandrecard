@@ -7,3 +7,5 @@ secrets/
 hs_err_pid*.log
 replay_pid*.log
 
+# Agent persona prompts. Local tooling, never part of the deliverable.
+*_PROMPT.md

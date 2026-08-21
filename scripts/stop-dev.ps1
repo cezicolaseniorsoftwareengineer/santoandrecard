@@ -81,9 +81,7 @@ $protectedMarkers = @(
     '\.vscode\',
     '\.vscode-server\',
     'mcp\server.mjs',
-    'claude-code',
-    'shell-snapshots',     # an agent or task shell, not a server
-    '\.claude'
+    'shell-snapshots'      # an agent or task shell, not a server
 )
 
 # This script ends servers, never shells or consoles. A terminal whose working
