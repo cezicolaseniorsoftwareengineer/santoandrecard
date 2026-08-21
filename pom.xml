@@ -26,17 +26,19 @@
         <test.excludedGroups>benchmark</test.excludedGroups>
         <!--
             Coverage floors, set from what the suite actually reaches rather
-            than from what would sound good: 84% of instructions and 59% of
-            branches across the bundle at the time of writing. Each floor sits
+            than from what would sound good: 88.68% of instructions and 70.04%
+            of branches across the bundle, and 93.23% of the domain package,
+            measured after the credit path was proven under concurrency on
+            PostgreSQL. Each floor sits
             just under the measurement, so the gate catches erosion on the next
             commit instead of failing on this one.
 
             Raised when the suite earns it. Never lowered to make a build pass —
             a floor that moves down to meet the code is not a floor.
         -->
-        <coverage.instruction.minimum>0.82</coverage.instruction.minimum>
-        <coverage.branch.minimum>0.57</coverage.branch.minimum>
-        <coverage.domain.minimum>0.82</coverage.domain.minimum>
+        <coverage.instruction.minimum>0.87</coverage.instruction.minimum>
+        <coverage.branch.minimum>0.68</coverage.branch.minimum>
+        <coverage.domain.minimum>0.91</coverage.domain.minimum>
     </properties>
 
     <dependencyManagement>

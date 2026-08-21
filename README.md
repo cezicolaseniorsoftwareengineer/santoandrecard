@@ -82,7 +82,7 @@ guarantee stops holding.
 | The schema PostgreSQL will accept is the schema that was tested | The packaged app boots against real PostgreSQL in CI, Flyway applies all 12 migrations, Hibernate validates the mapping | `.github/workflows/build.yml`, job `schema on PostgreSQL` |
 
 Coverage is a floor that fails the build rather than a report nobody opens. The
-suite currently reaches **84% of instructions and 59% of branches**, and the
+suite currently reaches **88% of instructions and 70% of branches**, and the
 gate is set just under that, so erosion fails the next commit rather than this
 one. The figures are the measurement, not an aspiration: the floors are raised
 when the suite earns it and never lowered to make a build pass.
@@ -96,7 +96,7 @@ docker` on Linux.
 ```bash
 docker compose up -d                    # PostgreSQL, Redis, Kafka, Keycloak
 cd card-service && mvn quarkus:dev      # API on :8080, Swagger at /q/swagger-ui
-cd ../web-app && npm ci && npm start    # interface on 127.0.0.1:4420
+cd ../web-app && npm ci && npm start    # interface on localhost:4420
 ```
 
 No build step precedes either application: `quarkus:dev` and `npm start` compile
@@ -104,7 +104,7 @@ on their own, so `mvn compile` and `npm run build` are not part of this path. Th
 first front-end compile takes around 70 seconds, and port 4420 refuses
 connections until it finishes.
 
-Then open `http://127.0.0.1:4420`, create an account through "Criar minha conta"
+Then open `http://localhost:4420`, create an account through "Criar minha conta"
 — the registration happens on Keycloak, and the application never sees a
 password — issue a card, fund it and buy something.
 
@@ -238,7 +238,7 @@ for appearance.
 | Grafana | 12.2, provisioned | The dashboard ships with the repository and arrives already wired to Prometheus and Tempo. A dashboard someone has to rebuild by hand is a dashboard that does not exist during an incident. |
 | JUnit 5 + RestAssured | 3.5.4 | Backend unit and API tests, including overlapping requests and a spent PIN budget. |
 | Testcontainers | 2.0.4 | Runs the concurrency tests against real PostgreSQL. The fast suite uses H2, which accepts `PESSIMISTIC_WRITE` and means something else by it; a lock that only holds on H2 does not hold. |
-| JaCoCo | 0.8.13, enforced | Coverage floors that fail the build, set just under the 84% instruction and 59% branch coverage the suite reaches. Collected through the Quarkus extension, because the bare agent cannot see a `@QuarkusTest` classloader. |
+| JaCoCo | 0.8.13, enforced | Coverage floors that fail the build, set just under the 88% instruction and 70% branch coverage the suite reaches. Collected through the Quarkus extension, because the bare agent cannot see a `@QuarkusTest` classloader. |
 | Playwright | Chromium | Browser end-to-end journey against the real Keycloak and the real API — a registration redirect, a PKCE exchange and a CORS allow-list only fail where they run. |
 | Vitest | 4.1 | Component and store tests, including a boot that must finish while the API never answers. |
 | GitHub Actions | build, schema, front end, dependencies, CodeQL | Boots the packaged application against real PostgreSQL on every push, because H2 in the fast profile once accepted a schema PostgreSQL rejected. |
@@ -478,7 +478,7 @@ npm ci      # first checkout only, or when package-lock.json changes
 npm start
 ```
 
-The interface is at `http://127.0.0.1:4420`. Create an account through "Criar
+The interface is at `http://localhost:4420`. Create an account through "Criar
 minha conta", which enters Keycloak's registration screen — the application never
 sees a password.
 
@@ -611,9 +611,11 @@ ports they hold (5432, 6379, 9092, 8180) stay bound until it runs.
 - **The first front-end compile takes around 70 seconds**, and port 4420 refuses
   connections throughout. A browser cannot tell that apart from a server that
   will never arrive. Wait for `Application bundle generation complete`.
-- **Use `http://127.0.0.1:4420`, not `localhost`.** The dev server binds IPv4
-  only (`"host": "127.0.0.1"` in `angular.json`), so where `localhost` resolves
-  to `::1` first the browser reports a dead server that is in fact listening.
+- **Either `http://localhost:4420` or `http://127.0.0.1:4420` works.** The dev
+  server is bound to `localhost` in `angular.json` and answers on both, and the
+  Keycloak client allows both as redirect and post-logout targets. Binding one
+  of them alone meant the other reported a dead server that was in fact
+  listening, and a sign-in redirect the provider then refused.
 - **Keycloak is the slowest container to become useful** and nothing
   authenticates until it answers:
   `curl -sf http://localhost:8180/realms/card-platform/.well-known/openid-configuration`

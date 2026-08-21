@@ -82,6 +82,20 @@ services:
       KC_DB_URL: ${KC_DB_URL:-jdbc:postgresql://postgres:5432/keycloak}
       KC_DB_USERNAME: ${KC_DB_USERNAME:-card_app}
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:-card_app_local}
+      # A first start creates the schema and imports the realm while Infinispan
+      # and Hibernate are still warming up. On a machine sharing the Docker VM
+      # with anything else, every one of those steps stretches, and the default
+      # five-second acquisition timeout expired mid-import: the server exited,
+      # the schema stayed half-created and port 8180 refused connections, which
+      # reaches the browser as a broken login route rather than as a database
+      # problem. The pool is allowed to wait long enough for a slow first boot.
+      QUARKUS_DATASOURCE_JDBC_ACQUISITION_TIMEOUT: "120"
+      KC_DB_POOL_INITIAL_SIZE: "1"
+      KC_DB_POOL_MIN_SIZE: "1"
+      KC_DB_POOL_MAX_SIZE: "10"
+      # Bounded so the identity provider cannot take the whole VM with it: the
+      # container default sizes the heap from memory it does not own alone.
+      JAVA_OPTS_KC_HEAP: "-Xms256m -Xmx768m"
     ports:
       - "8180:8180"
     volumes:
@@ -90,7 +104,11 @@ services:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q UP"]
       interval: 10s
       timeout: 5s
-      retries: 20
+      # The first boot creates the schema and imports the realm. Counting that
+      # against the retry budget declared the service unhealthy while it was
+      # still legitimately starting.
+      start_period: 180s
+      retries: 30
 
   # Observability. Kept behind a profile so the everyday bring-up stays small:
   #   docker compose --profile observability up -d
