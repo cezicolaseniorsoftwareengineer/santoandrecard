@@ -1,5 +1,8 @@
 package com.cezicola.card.application;
 
+import com.cezicola.card.domain.CardProduct;
+import com.cezicola.card.domain.FundingSource;
+import com.cezicola.card.domain.LedgerAccount;
 import com.cezicola.card.support.PostgresProfile;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
@@ -42,6 +45,7 @@ class LedgerConcurrencyOnPostgresTest {
 
     @Inject FinanceService finance;
     @Inject LedgerService ledger;
+    @Inject CardService cards;
 
     @Test
     void concurrentPurchasesSpendACardExactlyOnce() throws Exception {
@@ -97,6 +101,51 @@ class LedgerConcurrencyOnPostgresTest {
         // Nothing was created or destroyed: the money only changed account.
         assertEquals(0, new BigDecimal("300.00").compareTo(finance.cardBalance(tenant, customer)));
         assertTrue(ledger.reconcileWallets(tenant).isEmpty());
+    }
+
+    /**
+     * The credit limit under the same race, for a customer who never funded a wallet.
+     *
+     * <p>This is the case the other two could not reach. The mutex is the wallet
+     * row, and that row was created by the first top-up, so a customer who only
+     * ever bought on credit had none: the lock resolved to nothing and every
+     * concurrent purchase read the same outstanding receivable before any of
+     * them had written one. The limit held only because nothing had raced it.
+     *
+     * <p>No top-up here on purpose. The card alone carries the limit, and the
+     * assertion is exact for the same reason as above: an over-limit purchase is
+     * the loud failure, and refusing a purchase that fits under the limit is a
+     * defect too.
+     */
+    @Test
+    void concurrentCreditPurchasesCannotExceedTheLimitWithoutAWallet() throws Exception {
+        UUID tenant = UUID.randomUUID();
+        UUID customer = UUID.randomUUID();
+        finance.setInterestPolicy(tenant, BigDecimal.ZERO);
+        cards.create(new CreateCardCommand(tenant, customer, new BigDecimal("500.00"),
+                CardProduct.PLATINUM, "credit-race-" + customer));
+
+        AtomicInteger refused = new AtomicInteger();
+        var outcomes = race(ATTEMPTS, () -> {
+            try {
+                finance.purchase(tenant, customer, "RETAIL", new BigDecimal("100.00"), 1,
+                        FundingSource.CREDIT);
+                return true;
+            } catch (InsufficientFundsException expected) {
+                refused.incrementAndGet();
+                return false;
+            }
+        });
+
+        long settled = outcomes.stream().filter(Boolean::booleanValue).count();
+        assertEquals(5, settled, "a R$ 500,00 limit funds exactly five credit purchases of R$ 100,00");
+        assertEquals(ATTEMPTS - 5, refused.get(), "every purchase past the fifth must be refused, not lost");
+
+        assertEquals(0, new BigDecimal("500.00").compareTo(
+                        ledger.balanceOf(tenant, LedgerAccount.CUSTOMER_RECEIVABLE, customer)),
+                "the customer owes exactly the limit, never more");
+        assertTrue(ledger.unbalancedTransactions(tenant).isEmpty(),
+                "a concurrent credit purchase wrote an unbalanced entry");
     }
 
     /**

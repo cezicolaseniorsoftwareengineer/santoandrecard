@@ -54,15 +54,9 @@ public class FinanceService {
     @Transactional
     public WalletView topUp(UUID tenantId, UUID customerId, BigDecimal amount) {
         requireMoney(amount);
+        // Locking creates the wallet when it is the customer's first, so there is
+        // no absent case to handle here and no unlocked window in which to handle it.
         WalletEntity wallet = lockedWallet(tenantId, customerId);
-        if (wallet == null) {
-            wallet = new WalletEntity();
-            wallet.walletKey = WalletEntity.key(tenantId, customerId);
-            wallet.tenantId = tenantId;
-            wallet.customerId = customerId;
-            wallet.balance = BigDecimal.ZERO.setScale(2);
-            entityManager.persist(wallet);
-        }
         wallet.balance = wallet.balance.add(amount);
 
         // Funds enter the platform and the issuer's debt to the customer grows by
@@ -98,7 +92,7 @@ public class FinanceService {
     public CardBalanceView loadCard(UUID tenantId, UUID customerId, BigDecimal amount) {
         requireMoney(amount);
         WalletEntity wallet = lockedWallet(tenantId, customerId);
-        if (wallet == null || wallet.balance.compareTo(amount) < 0) {
+        if (wallet.balance.compareTo(amount) < 0) {
             metrics.refused("card_load", "insufficient_funds");
             throw InsufficientFundsException.wallet();
         }
@@ -176,7 +170,9 @@ public class FinanceService {
         // pays: both the prepaid balance and the outstanding receivable are sums
         // over postings, so neither has a row of its own to lock, and without
         // serialising here two concurrent purchases could both read the same
-        // figure and both pass.
+        // figure and both pass. The row is created if the customer has none, so
+        // the mutex covers a credit purchase from a customer who never funded a
+        // wallet — the case that previously took no lock at all.
         lockedWallet(tenantId, customerId);
         if (fundingSource == FundingSource.CARD) {
             BigDecimal available = cardBalance(tenantId, customerId);
@@ -344,8 +340,41 @@ public class FinanceService {
                 .orElseThrow(CardNotFoundException::forCustomer);
     }
 
+    /**
+     * The per-customer mutex, guaranteed to exist before it is locked.
+     *
+     * <p>This used to return null when the row was absent, which made it a mutex
+     * only for customers who had already topped up. The row is created by the
+     * first top-up, so a customer who had never funded a wallet and bought on
+     * credit acquired no lock at all: two concurrent purchases both read the
+     * same outstanding receivable and both passed the limit check. Nothing in
+     * the caller could have noticed — a lock that is silently absent looks
+     * exactly like a lock that is held.
+     *
+     * <p>The insert is conditional rather than guarded by a read, because a read
+     * that finds nothing is not a promise that the row will still be missing a
+     * moment later. Both concurrent callers attempt it, the database keeps one
+     * and discards the other without raising, and both then contend for the same
+     * row. An empty wallet is also the truthful state for a customer who has one
+     * and has never funded it.
+     *
+     * <p>The conflict is left untargeted deliberately. The table carries two
+     * unique constraints over the same identity — the primary key and
+     * {@code (tenant_id, customer_id)} — and naming one of them suppresses only
+     * that index, so the loser of the race was still rejected by the other.
+     */
     private WalletEntity lockedWallet(UUID tenantId, UUID customerId) {
-        return entityManager.find(WalletEntity.class, WalletEntity.key(tenantId, customerId), LockModeType.PESSIMISTIC_WRITE);
+        String walletKey = WalletEntity.key(tenantId, customerId);
+        entityManager.createNativeQuery("""
+                        insert into wallets (wallet_key, tenant_id, customer_id, balance, version)
+                        values (?1, ?2, ?3, 0, 0)
+                        on conflict do nothing
+                        """)
+                .setParameter(1, walletKey)
+                .setParameter(2, tenantId)
+                .setParameter(3, customerId)
+                .executeUpdate();
+        return entityManager.find(WalletEntity.class, walletKey, LockModeType.PESSIMISTIC_WRITE);
     }
 
     private BigDecimal rateFor(UUID tenantId) {
